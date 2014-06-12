@@ -4,6 +4,7 @@ import os
 import sys
 
 from django.contrib.sites.models import Site
+from django.utils import translation
 
 from mezzanine.conf import settings
 from mezzanine.core.request import current_request
@@ -53,7 +54,13 @@ def current_site_id():
         if request and site_id:
             request.site_id = site_id
     if not site_id:
-        site_id = os.environ.get("MEZZANINE_SITE_ID", settings.SITE_ID)
+        try:
+            cur_language = translation.get_language()
+            site_id = settings.LANGUAGE_SITE_MAP[cur_language]
+        except KeyError:
+            site_id = os.environ.get("MEZZANINE_SITE_ID", settings.SITE_ID)
+            msg = 'Please add language %s to settings.LANGUAGE_SITE_MAP'
+            sys.stdout.write(msg % cur_language)
     return site_id
 
 
