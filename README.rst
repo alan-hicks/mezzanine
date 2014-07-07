@@ -79,11 +79,11 @@ standard Django environment), with the following dependencies:
 * `Pillow`_ - for image resizing (`Python Imaging Library`_ fork)
 * `grappelli-safe`_ - admin skin (`Grappelli`_ fork)
 * `filebrowser-safe`_ - for managing file uploads (`FileBrowser`_ fork)
-* `bleach`_ - for sanitizing markup in content
+* `bleach`_ and `BeautifulSoup`_ - for sanitizing markup in content
 * `pytz`_ and `tzlocal`_ - for timezone support
 * `South`_ - for database migrations (optional)
 * `django-compressor`_ - for merging JS/CSS assets (optional)
-* `requests`_ and `requests-oauth`_ - for interacting with external APIs
+* `requests`_ and `requests_oauthlib`_ - for interacting with external APIs
 * `pyflakes`_ and `pep8`_ - for running the test suite (optional)
 
 Users on Debian or Ubuntu will require some system packages to support
@@ -259,17 +259,23 @@ You can also add modules to the `Mezzanine Grid on djangopackages.com`_.
   membership.
 * `mezzanine-page-auth`_ - A Mezzanine module for add group-level
   permission to pages.
-* `django-widgy`_ - Widget-oriented content editing. Includes an adapter for
-  Mezzanine and a powerful form builder.
-* `mezzanine-admin-backup`_ - Export your Mezzanine database and assets directly from the admin.
-* `mezzanine-mailchimp`_ - Integrate Mezzanine forms with a MailChimp subscription list.
-* `mezzanine-grappelli`_ - Integrates latest upstream grappelli/filebrowser with Mezzanine.
+* `django-widgy`_ - Widget-oriented content editing. Includes an
+  adapter for Mezzanine and a powerful form builder.
+* `mezzanine-admin-backup`_ - Export your Mezzanine database and assets
+  directly from the admin.
+* `mezzanine-mailchimp`_ - Integrate Mezzanine forms with a MailChimp
+  subscription list.
+* `mezzanine-grappelli`_ - Integrates latest upstream
+  grappelli/filebrowser with Mezzanine.
 * `mezzanine-workout`_ - Store and display FIT data in Mezzanine.
 * `mezzanine-agenda`_ - Event functionality for your Mezzanine sites.
-* `mezzanine-dpaste`_ - Integrate `dpaste`_, a Django pastebin, into your Mezzanine site.
+* `mezzanine-dpaste`_ - Integrate `dpaste`_, a Django pastebin, into
+  your Mezzanine site.
 * `mezzanine-linkdump`_ - Create, display and track links in Mezzanine.
-* `mezzanine-people`_ - Categorize and list people on your Mezzanine site.
-
+* `mezzanine-people`_ - Categorize and list people in Mezzanine.
+* `mezzanine-webf`_ - Fabfile for deploying Mezzanine to Webfaction.
+* `mezzanineopenshift`_ Another setup for `Redhat's OpenShift`_ cloud
+  platform.
 
 Donating
 ========
@@ -517,6 +523,10 @@ Sites Using Mezzanine
 * `Resource Management Companies <http://rmcrecycle.com>`_
 * `DollFires <http://dollfires.com>`_
 * `Quantifind <http://quantifind.com/>`_
+* `ZHackers <https://www.zhackers.com>`_
+* `Open ERP Arabia <http://openerparabia.org/>`_
+* `DataKind <http://www.datakind.org/>`_
+* `New Zealand Institute of Economic Research <http://nzier.org.nz/>`_
 
 
 Quotes
@@ -560,6 +570,7 @@ Quotes
 .. _`Python`: http://python.org/
 .. _`pip`: http://www.pip-installer.org/
 .. _`bleach`: http://pypi.python.org/pypi/bleach
+.. _`BeautifulSoup`: http://www.crummy.com/software/BeautifulSoup/
 .. _`pytz`: http://pypi.python.org/pypi/pytz/
 .. _`tzlocal`: http://pypi.python.org/pypi/tzlocal/
 .. _`django-compressor`: https://pypi.python.org/pypi/django_compressor
@@ -571,7 +582,7 @@ Quotes
 .. _`FileBrowser`: http://code.google.com/p/django-filebrowser/
 .. _`South`: http://south.aeracode.org/
 .. _`requests`: http://docs.python-requests.org/en/latest/
-.. _`requests-oauth`: https://github.com/maraujop/requests-oauth
+.. _`requests_oauthlib`: http://requests-oauthlib.readthedocs.org/
 .. _`pyflakes`: http://pypi.python.org/pypi/pyflakes
 .. _`pep8`: http://pypi.python.org/pypi/pep8
 .. _`Homebrew`: http://mxcl.github.com/homebrew/
@@ -677,6 +688,8 @@ Quotes
 .. _`mezzanine-dpaste`: https://github.com/prikhi/mezzanine-dpaste
 .. _`mezzanine-linkdump`: https://github.com/prikhi/mezzanine-linkdump
 .. _`mezzanine-people`: https://github.com/eci/mezzanine-people
+.. _`mezzanine-webf`: https://github.com/jerivas/mezzanine-webf
+.. _`mezzanineopenshift`: https://bitbucket.org/radeksvarz/mezzanineopenshift
 
 
 .. PEOPLE WITH QUOTES

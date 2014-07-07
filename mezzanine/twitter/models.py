@@ -4,9 +4,11 @@ from future.builtins import str
 from datetime import datetime, timedelta
 import re
 from time import timezone
+
 try:
     from urllib.parse import quote
-except ImportError:     # Python 2
+except ImportError:
+    # Python 2
     from urllib import quote
 
 from django.db import models
@@ -54,17 +56,18 @@ class Query(models.Model):
         """
         Request new tweets from the Twitter API.
         """
+        try:
+            value = quote(self.value)
+        except KeyError:
+            value = self.value
         urls = {
             QUERY_TYPE_USER: ("https://api.twitter.com/1.1/statuses/"
                               "user_timeline.json?screen_name=%s"
-                              "&include_rts=true" %
-                              self.value.lstrip("@")),
+                              "&include_rts=true" % value.lstrip("@")),
             QUERY_TYPE_LIST: ("https://api.twitter.com/1.1/lists/statuses.json"
-                              "?list_id=%s&include_rts=true" %
-                              self.value.encode("utf-8")),
+                              "?list_id=%s&include_rts=true" % value),
             QUERY_TYPE_SEARCH: "https://api.twitter.com/1.1/search/tweets.json"
-                                "?q=%s" %
-                               quote(self.value.encode("utf-8")),
+                                "?q=%s" % value,
         }
         try:
             url = urls[self.type]
@@ -127,6 +130,10 @@ class Query(models.Model):
             d = datetime.strptime(tweet_json["created_at"], date_format)
             d -= timedelta(seconds=timezone)
             tweet.created_at = make_aware(d, get_default_timezone())
+            try:
+                tweet.save()
+            except Warning:
+                pass
             tweet.save()
         self.interested = False
         self.save()

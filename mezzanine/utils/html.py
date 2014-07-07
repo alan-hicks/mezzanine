@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-from future.builtins import chr, int
+from future.builtins import chr, int, str
 
 try:
     from html.parser import HTMLParser, HTMLParseError
@@ -12,6 +12,7 @@ import re
 
 
 SELF_CLOSING_TAGS = ['br', 'img']
+NON_SELF_CLOSING_TAGS = ['script', 'iframe']
 
 
 def decode_entities(html):
@@ -45,20 +46,18 @@ def thumbnails(html):
     one of the default values in the ``RICHTEXT_FILTERS`` setting.
     """
     from django.conf import settings
-    from html5lib.treebuilders import getTreeBuilder
-    from html5lib.html5parser import HTMLParser
+    from bs4 import BeautifulSoup
     from mezzanine.core.templatetags.mezzanine_tags import thumbnail
 
-    dom = HTMLParser(tree=getTreeBuilder("dom")).parse(html)
-    for img in dom.getElementsByTagName("img"):
-        src = img.getAttribute("src")
-        width = img.getAttribute("width")
-        height = img.getAttribute("height")
-        if src and width and height:
-            src = settings.MEDIA_URL + thumbnail(src, width, height)
-            img.setAttribute("src", src)
-    nodes = dom.getElementsByTagName("body")[0].childNodes
-    return "".join([node.toxml() for node in nodes])
+    dom = BeautifulSoup(html)
+    for img in dom.findAll("img"):
+        src = img.get("src", "")
+        src_in_media = src.lower().startswith(settings.MEDIA_URL.lower())
+        width = img.get("width")
+        height = img.get("height")
+        if src_in_media and width and height:
+            img["src"] = settings.MEDIA_URL + thumbnail(src, width, height)
+    return str(dom)
 
 
 class TagCloser(HTMLParser):
