@@ -10,6 +10,10 @@ from mezzanine.core.request import current_request
 from mezzanine.pages.models import Page, RichTextPage
 from mezzanine.urls import PAGES_SLUG
 from mezzanine.utils.tests import TestCase
+from mezzanine.utils.models import get_user_model
+from django.contrib.auth.models import AnonymousUser
+
+User = get_user_model()
 
 
 class PagesTests(TestCase):
@@ -129,6 +133,38 @@ class PagesTests(TestCase):
 
         child = RichTextPage.objects.get(id=child.id)
         self.assertTrue(child.slug == "new-parent-slug/child")
+
+    def test_login_required(self):
+        public, _ = RichTextPage.objects.get_or_create(title="Public",
+                                                       slug="public",
+                                                       login_required=False)
+        private, _ = RichTextPage.objects.get_or_create(title="Private",
+                                                      slug="private",
+                                                      login_required=True)
+        user = AnonymousUser()
+        self.assertTrue(public in RichTextPage.objects.published(
+                for_user=user
+            ))
+        self.assertTrue(not private in RichTextPage.objects.published(
+                for_user=user
+            ))
+        user = User.objects.get(username=self._username)
+        self.assertTrue(public in RichTextPage.objects.published(
+                for_user=user
+            ))
+        self.assertTrue(private in RichTextPage.objects.published(
+                for_user=user
+            ))
+        self.client.logout()
+        response = self.client.get(private.get_absolute_url(), follow=True)
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get(public.get_absolute_url(), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.client.login(username=self._username, password=self._password)
+        response = self.client.get(private.get_absolute_url(), follow=True)
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get(public.get_absolute_url(), follow=True)
+        self.assertEqual(response.status_code, 200)
 
     def test_page_menu_queries(self):
         """

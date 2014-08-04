@@ -43,7 +43,7 @@ interface, Mezzanine provides the following:
 * Configurable `dashboard`_ widgets
 * Blog engine
 * Tagging
-* `Themes Marketplace`_
+* `Free Themes`_, and a `Premium Themes`_ Marketplace
 * User accounts and profiles with email verification
 * Translated to over 35 languages
 * Sharing via Facebook or Twitter
@@ -95,6 +95,13 @@ the imaging library::
 OSX users can do the same via `Homebrew`_::
 
     $ brew install libjpeg
+
+Themes
+======
+
+A handful of attractive `Free Themes`_ are available thanks to
+`@abhinavsohani`_, while there is also a marketplace for buying and
+selling `Premium Themes`_ thanks to `@joshcartme`_.
 
 Browser Support
 ===============
@@ -169,18 +176,24 @@ Please note the following guidelines for contributing:
 * If you are adding new functionality, you must include basic tests
   and documentation.
 
-If you want to do development with mezzanine, here's a quick way to set
-up a development environment and run the unit tests, using
-`virtualenvwrapper`_ to set up a virtualenv::
+Here's a quick start to hacking on Mezzanine after forking it on
+GitHub, by using the internal "project_template" as your current
+project::
 
-    $ mkvirtualenv mezzanine
-    $ workon mezzanine
-    $ pip install Django pep8 pyflakes
-    $ git clone https://github.com/stephenmcd/mezzanine/
+    $ git clone https://github.com/your-github-username/mezzanine/
     $ cd mezzanine
+    $ git checkout -b your-new-branch-name
+    $ cp mezzanine/project_template/local_settings.py{.template,}
     $ python setup.py develop
-    $ cp mezzanine/project_template/local_settings.py.template mezzanine/project_template/local_settings.py
-    $ ./mezzanine/project_template/manage.py test
+    $ python mezzanine/project_template/manage.py createdb --noinput
+    $ python mezzanine/project_template/manage.py runserver
+
+    "hack hack hack"
+
+    $ python setup.py test
+    $ git commit -am "A message describing what you changed."
+    $ git push origin your-new-branch-name
+
 
 Language Translations
 =====================
@@ -276,6 +289,8 @@ You can also add modules to the `Mezzanine Grid on djangopackages.com`_.
 * `mezzanine-webf`_ - Fabfile for deploying Mezzanine to Webfaction.
 * `mezzanineopenshift`_ Another setup for `Redhat's OpenShift`_ cloud
   platform.
+* `mezzanine-bsbanners`_ Add `Twitter Bootstrap`_ Carousels and
+  Jumbotrons to Mezzanine.
 
 Donating
 ========
@@ -527,6 +542,9 @@ Sites Using Mezzanine
 * `Open ERP Arabia <http://openerparabia.org/>`_
 * `DataKind <http://www.datakind.org/>`_
 * `New Zealand Institute of Economic Research <http://nzier.org.nz/>`_
+* `CodingHouse <http://thecodinghouse.in>`_
+* `Triple J Products <http://triplejcoilproducts.com>`_
+* `Aaron E. Balderas <http://abalderas.com/>`_
 
 
 Quotes
@@ -590,7 +608,10 @@ Quotes
 .. _`custom content types`: http://mezzanine.jupo.org/docs/content-architecture.html#creating-custom-content-types
 .. _`Search engine and API`: http://mezzanine.jupo.org/docs/search-engine.html
 .. _`dashboard`: http://mezzanine.jupo.org/docs/admin-customization.html#dashboard
-.. _`Themes Marketplace`: http://mezzathe.me/
+.. _`Free Themes`: http://thecodinghouse.in/themes/
+.. _`Premium Themes`: http://mezzathe.me/
+.. _`@abhinavsohani`: https://twitter.com/abhinavsohani
+.. _`@joshcartme`: https://twitter.com/joshcartme
 .. _`Cartridge`: http://cartridge.jupo.org/
 .. _`Custom templates`: http://mezzanine.jupo.org/docs/content-architecture.html#page-templates
 .. _`test suite`: http://mezzanine.jupo.org/docs/packages.html#module-mezzanine.core.tests
@@ -690,6 +711,7 @@ Quotes
 .. _`mezzanine-people`: https://github.com/eci/mezzanine-people
 .. _`mezzanine-webf`: https://github.com/jerivas/mezzanine-webf
 .. _`mezzanineopenshift`: https://bitbucket.org/radeksvarz/mezzanineopenshift
+.. _`mezzanine-bsbanners`: https://pypi.python.org/pypi/mezzanine-bsbanners
 
 
 .. PEOPLE WITH QUOTES
