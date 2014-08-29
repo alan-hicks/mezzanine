@@ -289,8 +289,11 @@ You can also add modules to the `Mezzanine Grid on djangopackages.com`_.
 * `mezzanine-webf`_ - Fabfile for deploying Mezzanine to Webfaction.
 * `mezzanineopenshift`_ Another setup for `Redhat's OpenShift`_ cloud
   platform.
-* `mezzanine-bsbanners`_ Add `Twitter Bootstrap`_ Carousels and
+* `mezzanine-bsbanners`_ - Add `Twitter Bootstrap`_ Carousels and
   Jumbotrons to Mezzanine.
+* `mezzanine-business-theme` Starter business theme for Mezzanine.
+* `open-helpdesk` A helpdesk app built with Mezzanine.
+
 
 Donating
 ========
@@ -544,7 +547,11 @@ Sites Using Mezzanine
 * `New Zealand Institute of Economic Research <http://nzier.org.nz/>`_
 * `CodingHouse <http://thecodinghouse.in>`_
 * `Triple J Products <http://triplejcoilproducts.com>`_
-* `Aaron E. Balderas <http://abalderas.com/>`_
+* `Aaron E. Balderas <http://abalderas.com>`_
+* `DVD.nl <http://dvd.nl/>`_
+* `Constantia Fabrics <http://www.constantiafabrics.co.za/>`_
+* `Potrillo al Pie <http://potrilloalpie.com/>`_
+* `Skyfalk Web Studio <http://skyfalk.ru>`_
 
 
 Quotes
@@ -712,6 +719,8 @@ Quotes
 .. _`mezzanine-webf`: https://github.com/jerivas/mezzanine-webf
 .. _`mezzanineopenshift`: https://bitbucket.org/radeksvarz/mezzanineopenshift
 .. _`mezzanine-bsbanners`: https://pypi.python.org/pypi/mezzanine-bsbanners
+.. _`mezzanine-business-theme`: https://github.com/dfalk/mezzanine-business-themebsbanners
+.. _`open-helpdesk`: https://github.com/simodalla/open-helpdesk
 
 
 .. PEOPLE WITH QUOTES
