@@ -32,7 +32,7 @@ register_setting(
 register_setting(
     name="ADMIN_MENU_COLLAPSED",
     description=_("Controls whether or not the left-hand admin menu is "
-                  "collpased by default."),
+                  "collapsed by default."),
     editable=True,
     default=False,
 )
@@ -130,8 +130,7 @@ register_setting(
             "TS21i-10", "UP.Browser", "UP.Link", "webOS", "Windows CE",
             "WinWAP", "YahooSeeker/M1A1-R2D2", "iPhone", "iPod", "Android",
             "BlackBerry9530", "LG-TU915 Obigo", "LGE VX", "webOS",
-            "Nokia5800",)
-        ),
+            "Nokia5800",)),
     ),
 )
 

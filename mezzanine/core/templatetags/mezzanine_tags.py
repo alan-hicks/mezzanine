@@ -92,13 +92,13 @@ else:
         return parsed
 
 
-@register.inclusion_tag("includes/form_fields.html", takes_context=True)
-def fields_for(context, form):
+@register.simple_tag(takes_context=True)
+def fields_for(context, form, template="includes/form_fields.html"):
     """
-    Renders fields for a form.
+    Renders fields for a form with an optional template choice.
     """
     context["form_for_fields"] = form
-    return context
+    return get_template(template).render(Context(context))
 
 
 @register.inclusion_tag("includes/form_errors.html", takes_context=True)
@@ -600,15 +600,16 @@ def admin_dropdown_menu(context):
     """
     Renders the app list for the admin dropdown menu navigation.
     """
-    context["dropdown_menu_app_list"] = admin_app_list(context["request"])
     user = context["request"].user
-    if user.is_superuser:
-        sites = Site.objects.all()
-    else:
-        sites = user.sitepermissions.get().sites.all()
-    context["dropdown_menu_sites"] = list(sites)
-    context["dropdown_menu_selected_site_id"] = current_site_id()
-    return context
+    if user.is_staff:
+        context["dropdown_menu_app_list"] = admin_app_list(context["request"])
+        if user.is_superuser:
+            sites = Site.objects.all()
+        else:
+            sites = user.sitepermissions.get().sites.all()
+        context["dropdown_menu_sites"] = list(sites)
+        context["dropdown_menu_selected_site_id"] = current_site_id()
+        return context
 
 
 @register.inclusion_tag("admin/includes/app_list.html", takes_context=True)

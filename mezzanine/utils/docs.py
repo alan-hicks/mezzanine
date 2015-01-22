@@ -57,14 +57,16 @@ def build_settings_docs(docs_path, prefix=None):
         if isinstance(setting_default, str):
             if gethostname() in setting_default or (
                 setting_default.startswith("/") and
-                os.path.exists(setting_default)):
+                    os.path.exists(setting_default)):
                 setting_default = dynamic
         if setting_default != dynamic:
             setting_default = repr(deep_force_unicode(setting_default))
         lines.extend(["", settings_name, "-" * len(settings_name)])
-        lines.extend(["", urlize(setting["description"] or ""
-            ).replace("<a href=\"", "`"
-            ).replace("\" rel=\"nofollow\">", " <").replace("</a>", ">`_")])
+        lines.extend(["",
+            urlize(setting["description"] or "").replace(
+                "<a href=\"", "`").replace(
+                "\" rel=\"nofollow\">", " <").replace(
+                "</a>", ">`_")])
         if setting["choices"]:
             choices = ", ".join(["%s: ``%s``" % (str(v), force_text(k))
                                  for k, v in setting["choices"]])
@@ -276,6 +278,11 @@ def build_modelgraph(docs_path, package_name="mezzanine"):
     except Exception as e:
         warn("Couldn't build model_graph, resize failed on: %s" % e)
         return
+    # Copy the dashboard screenshot to the build dir too. This doesn't
+    # really belong anywhere, so we do it here since this is the only
+    # spot we deal with doc images.
+    d = "dashboard.png"
+    copyfile(os.path.join(docs_path, "img", d), os.path.join(build_path, d))
 
 
 def build_requirements(docs_path, package_name="mezzanine"):

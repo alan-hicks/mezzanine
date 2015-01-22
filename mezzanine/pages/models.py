@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 from future.builtins import filter, str
 try:
     from urllib.parse import urljoin
-except ImportError:     # Python 2
+except ImportError:  # Python 2
     from urlparse import urljoin
 
 from django.core.urlresolvers import resolve, reverse
@@ -165,6 +165,7 @@ class Page(BasePage):
                 page.slug = new_slug + page.slug[len(self.slug):]
                 page.save()
         self.slug = new_slug
+        self.save()
 
     def set_parent(self, new_parent):
         """
