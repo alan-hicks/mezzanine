@@ -1,8 +1,10 @@
 from __future__ import unicode_literals
+
 import atexit
 import os
 import shutil
 import sys
+
 import django
 
 
@@ -29,18 +31,39 @@ def main(package="mezzanine"):
         with open(test_settings_path, "r") as f:
             local_settings = f.read()
         with open(test_settings_path, "w") as f:
-            test_reqs_str = """
+            test_settings = """
+
 from project_template import settings
-globals().update(settings.__dict__)
+
+globals().update(i for i in settings.__dict__.items() if i[0].isupper())
+
+# Require the mezzanine.accounts app. We use settings.INSTALLED_APPS here so
+# the syntax test doesn't complain about an undefined name.
 if "mezzanine.accounts" not in settings.INSTALLED_APPS:
     INSTALLED_APPS = list(settings.INSTALLED_APPS) + ["mezzanine.accounts"]
-"""
-            if django.VERSION >= (1, 7):
-                test_reqs_str += "import django\ndjango.setup()"
-            f.write(test_reqs_str + local_settings)
-        atexit.register(lambda: os.remove(test_settings_path))
 
-    from django.core.management.commands import test
+# Use the MD5 password hasher by default for quicker test runs.
+PASSWORD_HASHERS = ('django.contrib.auth.hashers.MD5PasswordHasher',)
+
+"""
+            f.write(test_settings + local_settings)
+
+        def cleanup_test_settings():
+            import os  # Outer scope sometimes unavailable in atexit functions.
+            for fn in [test_settings_path, test_settings_path + 'c']:
+                try:
+                    os.remove(fn)
+                except OSError:
+                    pass
+        atexit.register(cleanup_test_settings)
+
+    if django.VERSION >= (1, 7):
+        django.setup()
+
+    try:
+        from south.management.commands import test
+    except ImportError:
+        from django.core.management.commands import test
     sys.exit(test.Command().execute(verbosity=1))
 
 
