@@ -1,10 +1,11 @@
 from __future__ import unicode_literals
 from future.builtins import str
 
-from django import VERSION
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.db import connection
+from django.utils.unittest import skipUnless
+from django.shortcuts import resolve_url
 from django.template import Context, Template
 from django.test.utils import override_settings
 from django.utils.http import urlquote_plus
@@ -166,12 +167,8 @@ class PagesTests(TestCase):
         self.client.logout()
         response = self.client.get(private_url, follow=True)
         login_prefix = ""
-        login_url = settings.LOGIN_URL
+        login_url = resolve_url(settings.LOGIN_URL)
         login_next = private_url
-        if VERSION >= (1, 5):
-            # Newer Django's allow various objects as values for LOGIN_URL.
-            from django.shortcuts import resolve_url
-            login_url = resolve_url(login_url)
         try:
             redirects_count = len(response.redirect_chain)
             response_url = response.redirect_chain[-1][0]
@@ -199,7 +196,7 @@ class PagesTests(TestCase):
         response = self.client.get(public_url, follow=True)
         self.assertEqual(response.status_code, 200)
 
-        if accounts_installed and VERSION >= (1, 5):
+        if accounts_installed:
             # View / pattern name redirect properly, without encoding next.
             login = "%s%s?next=%s" % (login_prefix, login_url, private_url)
             # Test if view name or URL pattern can be used as LOGIN_URL.
@@ -222,7 +219,7 @@ class PagesTests(TestCase):
         response = self.client.get(public_url, follow=True)
         self.assertEqual(response.status_code, 200)
 
-        if accounts_installed and VERSION >= (1, 5):
+        if accounts_installed:
             with override_settings(LOGIN_URL="mezzanine.accounts.views.login"):
                 response = self.client.get(public_url, follow=True)
                 self.assertEqual(response.status_code, 200)
@@ -312,3 +309,38 @@ class PagesTests(TestCase):
 
         page, _ = RichTextPage.objects.get_or_create(title="test page")
         self.assertEqual(test_page_processor(current_request(), page), {})
+
+    @skipUnless(settings.USE_MODELTRANSLATION and len(settings.LANGUAGES) > 1,
+                "modeltranslation configured for several languages required")
+    def test_page_slug_has_correct_lang(self):
+        """
+        Test that slug generation is done for the default language and
+        not the active one.
+        """
+        from django.utils.translation import get_language, activate
+        from django.utils.datastructures import SortedDict
+        from mezzanine.utils.urls import slugify
+
+        default_language = get_language()
+        code_list = SortedDict(settings.LANGUAGES)
+        del code_list[default_language]
+        title_1 = "Title firt language"
+        title_2 = "Title second language"
+        page, _ = RichTextPage.objects.get_or_create(title=title_1)
+        for code in code_list:
+            try:
+                activate(code)
+            except:
+                pass
+            else:
+                break
+            # No valid language found
+            page.delete()
+            return
+        page.title = title_2
+        page.save()
+        self.assertEqual(page.get_slug(), slugify(title_1))
+        self.assertEqual(page.title, title_2)
+        activate(default_language)
+        self.assertEqual(page.title, title_1)
+        page.delete()

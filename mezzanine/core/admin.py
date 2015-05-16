@@ -15,6 +15,38 @@ from mezzanine.core.models import (Orderable, SitePermission,
                                    CONTENT_STATUS_PUBLISHED)
 from mezzanine.utils.urls import admin_url
 
+if settings.USE_MODELTRANSLATION:
+    from django.utils.datastructures import SortedDict
+    from django.utils.translation import activate, get_language
+    from modeltranslation.admin import (TranslationAdmin,
+                                        TranslationInlineModelAdmin)
+
+    class BaseTranslationModelAdmin(TranslationAdmin):
+        """
+        Mimic modeltranslation's TabbedTranslationAdmin but uses a
+        custom tabbed_translation_fields.js
+        """
+        class Media:
+            js = (
+                "modeltranslation/js/force_jquery.js",
+                "mezzanine/js/%s" % settings.JQUERY_UI_FILENAME,
+                "mezzanine/js/admin/tabbed_translation_fields.js",
+            )
+            css = {
+                "all": ("mezzanine/css/admin/tabbed_translation_fields.css",),
+            }
+
+else:
+    class BaseTranslationModelAdmin(admin.ModelAdmin):
+        """
+        Abstract class used to handle the switch between translation
+        and no-translation class logic. We define the basic structure
+        for the Media class so we can extend it consistently regardless
+        of whether or not modeltranslation is used.
+        """
+        class Media:
+            css = {"all": ()}
+
 
 User = get_user_model()
 
@@ -30,7 +62,7 @@ class DisplayableAdminForm(ModelForm):
         return content
 
 
-class DisplayableAdmin(admin.ModelAdmin):
+class DisplayableAdmin(BaseTranslationModelAdmin):
     """
     Admin class for subclasses of the abstract ``Displayable`` model.
     """
@@ -63,6 +95,24 @@ class DisplayableAdmin(admin.ModelAdmin):
         except AttributeError:
             pass
 
+    def save_model(self, request, obj, form, change):
+        """
+        Save model for every language so that field auto-population
+        is done for every each of it.
+        """
+        super(DisplayableAdmin, self).save_model(request, obj, form, change)
+        if settings.USE_MODELTRANSLATION:
+            lang = get_language()
+            for code in SortedDict(settings.LANGUAGES):
+                if code != lang:  # Already done
+                    try:
+                        activate(code)
+                    except:
+                        pass
+                    else:
+                        obj.save()
+            activate(lang)
+
 
 class BaseDynamicInlineAdmin(object):
     """
@@ -91,7 +141,8 @@ class BaseDynamicInlineAdmin(object):
                                                             request, obj)
         if issubclass(self.model, Orderable):
             for fieldset in fieldsets:
-                fields = list(fieldset[1]["fields"])
+                fields = [f for f in list(fieldset[1]["fields"])
+                          if not hasattr(f, "translated_field")]
                 try:
                     fields.remove("_order")
                 except ValueError:
@@ -101,11 +152,26 @@ class BaseDynamicInlineAdmin(object):
         return fieldsets
 
 
-class TabularDynamicInlineAdmin(BaseDynamicInlineAdmin, admin.TabularInline):
+def getInlineBaseClass(cls):
+    if settings.USE_MODELTRANSLATION:
+        class InlineBase(TranslationInlineModelAdmin, cls):
+            """
+            Abstract class that mimics django-modeltranslation's
+            Translation{Tabular,Stacked}Inline. Used as a placeholder
+            for future improvement.
+            """
+            pass
+        return InlineBase
+    return cls
+
+
+class TabularDynamicInlineAdmin(BaseDynamicInlineAdmin,
+                                getInlineBaseClass(admin.TabularInline)):
     template = "admin/includes/dynamic_inline_tabular.html"
 
 
-class StackedDynamicInlineAdmin(BaseDynamicInlineAdmin, admin.StackedInline):
+class StackedDynamicInlineAdmin(BaseDynamicInlineAdmin,
+                                getInlineBaseClass(admin.StackedInline)):
     template = "admin/includes/dynamic_inline_stacked.html"
 
     def __init__(self, *args, **kwargs):

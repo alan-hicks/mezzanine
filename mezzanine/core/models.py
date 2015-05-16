@@ -9,7 +9,7 @@ try:
 except ImportError:
     from urllib import urlopen, urlencode
 
-from django.contrib.contenttypes.generic import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.db import models
 from django.db.models.base import ModelBase
 from django.db.models.signals import post_save
@@ -20,6 +20,7 @@ from django.utils.timesince import timesince
 from django.utils.timezone import now
 from django.utils.translation import ugettext, ugettext_lazy as _
 
+from mezzanine.conf import settings
 from mezzanine.core.fields import RichTextField, OrderField
 from mezzanine.core.managers import DisplayableManager, CurrentSiteManager
 from mezzanine.generic.fields import KeywordsField
@@ -99,7 +100,13 @@ class Slugged(SiteRelated):
         """
         Allows subclasses to implement their own slug creation logic.
         """
-        return slugify(self.title)
+        attr = "title"
+        if settings.USE_MODELTRANSLATION:
+            from modeltranslation.utils import build_localized_fieldname
+            attr = build_localized_fieldname(attr, settings.LANGUAGE_CODE)
+        # Get self.title_xx where xx is the default language, if any.
+        # Get self.title otherwise.
+        return slugify(getattr(self, attr, None) or self.title)
 
     def admin_link(self):
         return "<a href='%s'>%s</a>" % (self.get_absolute_url(),
@@ -495,8 +502,8 @@ class SitePermission(models.Model):
     access.
     """
 
-    user = models.ForeignKey(user_model_name, verbose_name=_("Author"),
-        related_name="%(class)ss", unique=True)
+    user = models.OneToOneField(user_model_name, verbose_name=_("Author"),
+        related_name="%(class)ss")
     sites = models.ManyToManyField("sites.Site", blank=True,
                                    verbose_name=_("Sites"))
 
@@ -515,7 +522,7 @@ def create_site_permission(sender, **kw):
         if created or perm.sites.count() < 1:
             perm.sites.add(current_site_id())
 
-# We don't specify the user model here, because with 1.5's custom
+# We don't specify the user model here, because with Django's custom
 # user models, everything explodes. So we check the name of it in
 # the signal.
 post_save.connect(create_site_permission)

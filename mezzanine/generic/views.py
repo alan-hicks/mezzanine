@@ -4,6 +4,7 @@ from future.builtins import str
 from json import dumps
 from string import punctuation
 
+from django.apps import apps
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.messages import error
 from django.core.urlresolvers import reverse
@@ -17,8 +18,8 @@ from mezzanine.conf import settings
 from mezzanine.generic.forms import ThreadedCommentForm, RatingForm
 from mezzanine.generic.models import Keyword
 from mezzanine.utils.cache import add_cache_bypass
-from mezzanine.utils.models import get_model
 from mezzanine.utils.views import render, set_cookie, is_spam
+from mezzanine.utils.importing import import_dotted_path
 
 
 @staff_member_required
@@ -75,7 +76,7 @@ def initial_validation(request, prefix):
         if len(model_data) != 2:
             return HttpResponseBadRequest()
         try:
-            model = get_model(*model_data)
+            model = apps.get_model(*model_data)
             obj = model.objects.get(id=post_data.get("object_pk", None))
         except (TypeError, ObjectDoesNotExist, LookupError):
             redirect_url = "/"
@@ -97,7 +98,8 @@ def comment(request, template="generic/comments.html"):
     if isinstance(response, HttpResponse):
         return response
     obj, post_data = response
-    form = ThreadedCommentForm(request, obj, post_data)
+    form_class = import_dotted_path(settings.COMMENT_FORM_CLASS)
+    form = form_class(request, obj, post_data)
     if form.is_valid():
         url = obj.get_absolute_url()
         if is_spam(request, form, url):
