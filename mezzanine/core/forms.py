@@ -8,6 +8,7 @@ from django.forms.extras.widgets import SelectDateWidget
 from django.utils.safestring import mark_safe
 
 from mezzanine.conf import settings
+from mezzanine.utils.static import static_lazy as static
 
 
 class Html5Mixin(object):
@@ -20,11 +21,13 @@ class Html5Mixin(object):
     def __init__(self, *args, **kwargs):
         super(Html5Mixin, self).__init__(*args, **kwargs)
         if hasattr(self, "fields"):
-            # Autofocus first field
-            first_field = next(iter(self.fields.values()))
-            first_field.widget.attrs["autofocus"] = ""
+            first_field = None
 
             for name, field in self.fields.items():
+                # Autofocus first non-hidden field
+                if not first_field and not field.widget.is_hidden:
+                    first_field = field
+                    first_field.widget.attrs["autofocus"] = ""
                 if settings.FORMS_USE_HTML5:
                     if isinstance(field, forms.EmailField):
                         self.fields[name].widget.input_type = "email"
@@ -34,12 +37,6 @@ class Html5Mixin(object):
                     self.fields[name].widget.attrs["required"] = ""
 
 
-_tinymce_js = ()
-if settings.GRAPPELLI_INSTALLED:
-    _tinymce_js = ("grappelli/tinymce/jscripts/tiny_mce/tiny_mce.js",
-                   settings.TINYMCE_SETUP_JS)
-
-
 class TinyMceWidget(forms.Textarea):
     """
     Setup the JS files and targetting CSS class for a textarea to
@@ -47,7 +44,9 @@ class TinyMceWidget(forms.Textarea):
     """
 
     class Media:
-        js = _tinymce_js
+        js = (static("mezzanine/tinymce/tinymce.min.js"),
+              static(settings.TINYMCE_SETUP_JS))
+        css = {'all': (static("mezzanine/tinymce/tinymce.css"),)}
 
     def __init__(self, *args, **kwargs):
         super(TinyMceWidget, self).__init__(*args, **kwargs)
@@ -79,8 +78,8 @@ class DynamicInlineAdminForm(forms.ModelForm):
     """
 
     class Media:
-        js = ("mezzanine/js/%s" % settings.JQUERY_UI_FILENAME,
-              "mezzanine/js/admin/dynamic_inline.js",)
+        js = [static("mezzanine/js/%s" % settings.JQUERY_UI_FILENAME),
+              static("mezzanine/js/admin/dynamic_inline.js")]
 
 
 class SplitSelectDateTimeWidget(forms.SplitDateTimeWidget):

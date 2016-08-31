@@ -138,24 +138,29 @@ The importer system has been designed to be extensible so that import
 commands can easily be added for other blogging platforms.
 
 Each importer's management command is located in the
-``mezzanine.blog.management.commands`` package, and should have its
+:mod:`mezzanine.blog.management.commands` package, and should have its
 module named ``import_type`` where ``type`` represents the type of
 import the command is for. This module will then contain a class named
 ``Command`` which subclasses
-``mezzanine.blog.base.BaseImporterCommand``.
+:class:`mezzanine.blog.management.base.BaseImporterCommand`.
 
 The first step is to define any custom arguments the command will
 require using Python's `optparse
 <http://docs.python.org/library/optparse.html>`_ handling.
 
 The main responsbility of the ``Command`` class is then to implement a
-``handle_import`` method which handles retrieving blog posts and
-comments from the particular blogging platform. The ``handle_import``
-method is passed a dictionary of options for the command. The
-``add_post`` and ``add_comment`` methods should be called inside the
-``handle_import`` method, adding posts and comments respectively. The
-``add_post`` method returns a post to be used with the ``add_comment``
-method. For example::
+:meth:`~mezzanine.blog.management.base.BaseImporterCommand.handle_import`
+method which handles retrieving blog posts and comments from the
+particular blogging platform. The :meth:`~mezzanine.blog.management.\
+base.BaseImporterCommand.handle_import` method is passed a dictionary
+of options for the command. The :meth:`~mezzanine.blog.management.base.\
+BaseImporterCommand.add_post` and :meth:`~mezzanine.blog.management.\
+base.BaseImporterCommand.add_comment` methods should be called inside
+the :meth:`~mezzanine.blog.management.base.BaseImporterCommand.\
+handle_import` method, adding posts and comments respectively. The
+:meth:`~mezzanine.blog.management.base.BaseImporterCommand.add_post`
+method returns a post to be used with the :meth:`~mezzanine.blog.\
+management.base.BaseImporterCommand.add_comment` method. For example::
 
     from optparse import make_option
     from django.core.management.base import CommandError
@@ -163,10 +168,11 @@ method. For example::
 
     class Command(BaseImporterCommand):
 
-        option_list = BaseImporterCommand.option_list + (
-            make_option("-s", "--some-arg-name", dest="some_arg_var",
-                help="Description of some-arg-name"),
-        )
+        def add_arguments(self, parser):
+            super(Command, self).add_arguments(parser)
+            parser.add_argument(
+                "-s", "--some-arg-name", dest="some_arg_var",
+                help="Description of some-arg-name")
 
         def handle_import(self, options):
             # Perform the tasks that need to occur to retrieve blog posts.

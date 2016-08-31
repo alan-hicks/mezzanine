@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 
 from django.utils.translation import ugettext_lazy as _
 
-from mezzanine import __version__
+from mezzanine import __version__  # noqa
 
 
 # Constants/choices for the different query types.
@@ -26,7 +26,6 @@ def get_auth_settings():
     only if they're all defined.
     """
     from mezzanine.conf import settings
-    settings.use_editable()
     try:
         auth_settings = (settings.TWITTER_CONSUMER_KEY,
                          settings.TWITTER_CONSUMER_SECRET,

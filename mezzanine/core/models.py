@@ -9,10 +9,10 @@ try:
 except ImportError:
     from urllib import urlopen, urlencode
 
+from django.apps import apps
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.db import models
 from django.db.models.base import ModelBase
-from django.db.models.signals import post_save
 from django.template.defaultfilters import truncatewords_html
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.html import strip_tags
@@ -147,7 +147,7 @@ class MetaData(models.Model):
         Accessor for the optional ``_meta_title`` field, which returns
         the string version of the instance if not provided.
         """
-        return self._meta_title or str(self)
+        return self._meta_title or getattr(self, "title", str(self))
 
     def description_from_content(self):
         """
@@ -180,6 +180,10 @@ class MetaData(models.Model):
                 break
         else:
             description = truncatewords_html(description, 100)
+        try:
+            description = unicode(description)
+        except NameError:
+            pass  # Python 3.
         return description
 
 
@@ -225,7 +229,7 @@ class Displayable(Slugged, MetaData, TimeStamped):
             "on the site."))
     publish_date = models.DateTimeField(_("Published from"),
         help_text=_("With Published chosen, won't be shown until this time"),
-        blank=True, null=True)
+        blank=True, null=True, db_index=True)
     expiry_date = models.DateTimeField(_("Expires on"),
         help_text=_("With Published chosen, won't be shown after this time"),
         blank=True, null=True)
@@ -308,7 +312,6 @@ class Displayable(Slugged, MetaData, TimeStamped):
         service have been specified.
         """
         from mezzanine.conf import settings
-        settings.use_editable()
         if settings.BITLY_ACCESS_TOKEN:
             url = "https://api-ssl.bit.ly/v3/shorten?%s" % urlencode({
                 "access_token": settings.BITLY_ACCESS_TOKEN,
@@ -495,6 +498,55 @@ class Ownable(models.Model):
         return request.user.is_superuser or request.user.id == self.user_id
 
 
+class ContentTyped(models.Model):
+    """
+    Mixin for models that can be subclassed to create custom types.
+    In order to use them:
+
+    - Inherit model from ContentTyped.
+    - Call the set_content_model() method in the model's save() method.
+    - Inherit that model's ModelAdmin from ContentTypesAdmin.
+    - Include "admin/includes/content_typed_change_list.html" in the
+    change_list.html template.
+    """
+    content_model = models.CharField(editable=False, max_length=50, null=True)
+
+    class Meta:
+        abstract = True
+
+    @classmethod
+    def get_content_model_name(cls):
+        """
+        Return the name of the OneToOneField django automatically creates for
+        child classes in multi-table inheritance.
+        """
+        return cls._meta.object_name.lower()
+
+    @classmethod
+    def get_content_models(cls):
+        """ Return all subclasses of the concrete model.  """
+        concrete_model = base_concrete_model(ContentTyped, cls)
+        return [m for m in apps.get_models()
+                if m is not concrete_model and issubclass(m, concrete_model)]
+
+    def set_content_model(self):
+        """
+        Set content_model to the child class's related name, or None if this is
+        the base class.
+        """
+        is_base_class = (
+            base_concrete_model(ContentTyped, self) == self.__class__)
+        self.content_model = (
+            None if is_base_class else self.get_content_model_name())
+
+    def get_content_model(self):
+        """
+        Return content model, or if this is the base class return it.
+        """
+        return (getattr(self, self.content_model) if self.content_model
+                else self)
+
+
 class SitePermission(models.Model):
     """
     Permission relationship between a user and a site that's
@@ -510,19 +562,3 @@ class SitePermission(models.Model):
     class Meta:
         verbose_name = _("Site permission")
         verbose_name_plural = _("Site permissions")
-
-
-def create_site_permission(sender, **kw):
-    sender_name = "%s.%s" % (sender._meta.app_label, sender._meta.object_name)
-    if sender_name.lower() != user_model_name.lower():
-        return
-    user = kw["instance"]
-    if user.is_staff and not user.is_superuser:
-        perm, created = SitePermission.objects.get_or_create(user=user)
-        if created or perm.sites.count() < 1:
-            perm.sites.add(current_site_id())
-
-# We don't specify the user model here, because with Django's custom
-# user models, everything explodes. So we check the name of it in
-# the signal.
-post_save.connect(create_site_permission)

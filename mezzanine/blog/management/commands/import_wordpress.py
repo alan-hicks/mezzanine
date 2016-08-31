@@ -3,10 +3,10 @@ from future.builtins import int
 
 from collections import defaultdict
 from datetime import datetime, timedelta
-from optparse import make_option
 import re
 from time import mktime, timezone
 from xml.dom.minidom import parse
+from xml.dom import Node
 
 from django.core.management.base import CommandError
 from django.utils.html import linebreaks
@@ -20,16 +20,18 @@ class Command(BaseImporterCommand):
     Wordpress Extended RSS file.
     """
 
-    option_list = BaseImporterCommand.option_list + (
-        make_option("-u", "--url", dest="url", help="URL to import file"),
-    )
+    def add_arguments(self, parser):
+        super(Command, self).add_arguments(parser)
+        parser.add_argument(
+            "-u", "--url", dest="url", help="URL to import file")
 
-    def get_text(self, xml, name, nodetype):
+    def get_text(self, xml, name):
         """
         Gets the element's text value from the XML object provided.
         """
         nodes = xml.getElementsByTagName("wp:comment_" + name)[0].childNodes
-        return "".join([n.data for n in nodes if n.nodeType == nodetype])
+        accepted_types = [Node.CDATA_SECTION_NODE, Node.TEXT_NODE]
+        return "".join([n.data for n in nodes if n.nodeType in accepted_types])
 
     def handle_import(self, options):
         """
@@ -78,11 +80,11 @@ class Command(BaseImporterCommand):
 
                 # Get the comments from the xml doc.
                 for c in xmlitem.getElementsByTagName("wp:comment"):
-                    name = self.get_text(c, "author", c.CDATA_SECTION_NODE)
-                    email = self.get_text(c, "author_email", c.TEXT_NODE)
-                    url = self.get_text(c, "author_url", c.TEXT_NODE)
-                    body = self.get_text(c, "content", c.CDATA_SECTION_NODE)
-                    pub_date = self.get_text(c, "date_gmt", c.TEXT_NODE)
+                    name = self.get_text(c, "author")
+                    email = self.get_text(c, "author_email")
+                    url = self.get_text(c, "author_url")
+                    body = self.get_text(c, "content")
+                    pub_date = self.get_text(c, "date_gmt")
                     fmt = "%Y-%m-%d %H:%M:%S"
                     pub_date = datetime.strptime(pub_date, fmt)
                     pub_date -= timedelta(seconds=timezone)

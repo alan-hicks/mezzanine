@@ -1,18 +1,19 @@
 from __future__ import unicode_literals
 
 from django.contrib.auth.views import redirect_to_login
-from django.core.exceptions import ImproperlyConfigured, MiddlewareNotUsed
+from django.core.exceptions import MiddlewareNotUsed
 from django.http import HttpResponse, Http404
 
 from mezzanine.conf import settings
-from mezzanine.pages import page_processors
+from mezzanine.pages import context_processors, page_processors
 from mezzanine.pages.models import Page
 from mezzanine.pages.views import page as page_view
+from mezzanine.utils.deprecation import MiddlewareMixin, MIDDLEWARE_SETTING
 from mezzanine.utils.importing import import_dotted_path
 from mezzanine.utils.urls import path_to_slug
 
 
-class PageMiddleware(object):
+class PageMiddleware(MiddlewareMixin):
     """
     Adds a page to the template context for the current response.
 
@@ -33,7 +34,8 @@ class PageMiddleware(object):
     context, so that the current page is always available.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super(PageMiddleware, self).__init__(*args, **kwargs)
         if "mezzanine.pages" not in settings.INSTALLED_APPS:
             raise MiddlewareNotUsed
 
@@ -51,9 +53,9 @@ class PageMiddleware(object):
             return cls._installed
         except AttributeError:
             name = "mezzanine.pages.middleware.PageMiddleware"
-            installed = name in settings.MIDDLEWARE_CLASSES
+            installed = name in MIDDLEWARE_SETTING
             if not installed:
-                for name in settings.MIDDLEWARE_CLASSES:
+                for name in MIDDLEWARE_SETTING:
                     if issubclass(import_dotted_path(name), cls):
                         installed = True
                         break
@@ -65,11 +67,6 @@ class PageMiddleware(object):
         Per-request mechanics for the current page object.
         """
 
-        cp = "mezzanine.pages.context_processors.page"
-        if cp not in settings.TEMPLATE_CONTEXT_PROCESSORS:
-            raise ImproperlyConfigured("%s is missing from "
-                "settings.TEMPLATE_CONTEXT_PROCESSORS" % cp)
-
         # Load the closest matching page by slug, and assign it to the
         # request object. If none found, skip all further processing.
         slug = path_to_slug(request.path_info)
@@ -78,6 +75,7 @@ class PageMiddleware(object):
         if pages:
             page = pages[0]
             setattr(request, "page", page)
+            context_processors.page(request)
         else:
             return
 

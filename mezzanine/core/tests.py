@@ -1,6 +1,13 @@
 from __future__ import unicode_literals
 
 import re
+from unittest import skipUnless
+
+from mezzanine.core.middleware import FetchFromCacheMiddleware
+from mezzanine.core.templatetags.mezzanine_tags import initialize_nevercache
+from mezzanine.utils.cache import cache_installed
+from mezzanine.utils.sites import current_site_id, override_current_site_id
+from mezzanine.utils.urls import admin_url
 
 try:
     # Python 3
@@ -9,6 +16,7 @@ except ImportError:
     # Python 2
     from urllib import urlencode
 
+from django.conf.urls import url
 from django.contrib.admin import AdminSite
 from django.contrib.admin.options import InlineModelAdmin
 from django.contrib.sites.models import Site
@@ -17,10 +25,12 @@ from django.core.urlresolvers import reverse
 from django.db import models
 from django.forms import Textarea
 from django.forms.models import modelform_factory
+from django.http import HttpResponse
+from django.template import RequestContext, Template
 from django.templatetags.static import static
+from django.test import Client
 from django.test.utils import override_settings
 from django.utils.html import strip_tags
-from django.utils.unittest import skipUnless
 
 from mezzanine.conf import settings
 from mezzanine.core.admin import BaseDynamicInlineAdmin
@@ -30,7 +40,7 @@ from mezzanine.core.models import (CONTENT_STATUS_DRAFT,
                                    CONTENT_STATUS_PUBLISHED)
 from mezzanine.forms.admin import FieldAdmin
 from mezzanine.forms.models import Form
-from mezzanine.pages.models import RichTextPage
+from mezzanine.pages.models import Page, RichTextPage
 from mezzanine.utils.importing import import_dotted_path
 from mezzanine.utils.tests import (TestCase, run_pyflakes_for_package,
                                              run_pep8_for_package)
@@ -65,6 +75,25 @@ class CoreTests(TestCase):
         default = self.client.get(url)
         mobile = self.client.get(url, HTTP_USER_AGENT=ua)
         self.assertNotEqual(default.template_name[0], mobile.template_name[0])
+
+    def test_bad_user_agent(self):
+        """
+        Ensures malformed UA strings don't crash the device handling
+        middleware.
+        """
+        # Ensure a normal request doesn't fail.
+        try:
+            Client().get("/")
+        except:
+            return
+        try:
+            Client(HTTP_USER_AGENT=u"\xe2\x28\xa1").get("/")
+        except Exception as e:
+            self.fail("Malformed user agent raised an exception %s" % e)
+        try:
+            Client(HTTP_USER_AGENT=b"\xff").get("/")
+        except Exception as e:
+            self.fail("Malformed user agent raised an exception %s" % e)
 
     def test_syntax(self):
         """
@@ -436,6 +465,31 @@ class CoreTests(TestCase):
         self.assertEqual(fieldsets[-1][1]["fields"][-1], '_order')
         self.assertNotIn('_order', fieldsets[1][1]["fields"])
 
+    def test_cache_installed(self):
+
+        test_contexts = [
+            (False,
+             ['mezzanine.core.middleware.FetchFromCacheMiddleware']),
+            (True,
+             ['mezzanine.core.middleware.UpdateCacheMiddleware',
+              'mezzanine.core.tests.SubclassMiddleware']),
+            (True,
+             ['mezzanine.core.middleware.UpdateCacheMiddleware',
+              'mezzanine.core.middleware.FetchFromCacheMiddleware']),
+        ]
+
+        with self.settings(TESTING=False):  # Well, this is silly
+            for expected_result, middleware_classes in test_contexts:
+                with self.settings(MIDDLEWARE_CLASSES=middleware_classes):
+                    cache_installed.cache_clear()
+                    self.assertEqual(cache_installed(), expected_result)
+
+        cache_installed.cache_clear()
+
+
+class SubclassMiddleware(FetchFromCacheMiddleware):
+    pass
+
 
 @skipUnless("mezzanine.pages" in settings.INSTALLED_APPS,
             "pages app required")
@@ -506,3 +560,97 @@ class SiteRelatedTestCase(TestCase):
 
         site1.delete()
         site2.delete()
+
+    def test_override_site_id(self):
+        self.assertEqual(current_site_id(), 1)
+        with override_current_site_id(2):
+            self.assertEqual(current_site_id(), 2)
+        self.assertEqual(current_site_id(), 1)
+
+
+class CSRFTestViews(object):
+    def nevercache_view(request):
+        template = "{% load mezzanine_tags %}"
+        template += "{% nevercache %}"
+        template += "{% csrf_token %}"
+        template += "{% endnevercache %}"
+
+        rendered = Template(template).render(RequestContext(request))
+
+        return HttpResponse(rendered)
+
+    urlpatterns = [
+        url("^nevercache_view/", nevercache_view),
+    ]
+
+
+class CSRFTestCase(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        # Initialize nevercache again now that @override_settings is finished
+        cache_installed.cache_clear()
+        initialize_nevercache()
+
+    @override_settings(
+        ROOT_URLCONF=CSRFTestViews,
+        CACHES={
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+             }
+        },
+        MIDDLEWARE_CLASSES=(
+            'mezzanine.core.middleware.UpdateCacheMiddleware',) +
+            settings.MIDDLEWARE_CLASSES +
+            ('mezzanine.core.middleware.FetchFromCacheMiddleware',
+        ),
+        TESTING=False)
+    def test_csrf_cookie_with_nevercache(self):
+        """
+        Test that the CSRF cookie is properly set when using nevercache.
+        """
+
+        # Clear the cached value for cache_installed and initialize nevercache
+        cache_installed.cache_clear()
+        initialize_nevercache()
+
+        # Test uses an authenticated user as the middleware behavior differs
+        self.client.login(username=self._username, password=self._password)
+        response = self.client.get("/nevercache_view/")
+
+        # CSRF token is expected to be rendered
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "csrfmiddlewaretoken")
+
+        # The CSRF cookie should be present
+        csrf_cookie = response.cookies.get(settings.CSRF_COOKIE_NAME, False)
+        self.assertNotEqual(csrf_cookie, False)
+
+
+class ContentTypedTestCase(TestCase):
+
+    def test_set_content_model_base_concrete_class(self):
+        page = Page.objects.create()
+        page.set_content_model()
+        self.assertEqual(page.content_model, None)
+        self.assertIs(page.get_content_model(), page)
+
+    def test_set_content_model_subclass(self):
+        richtextpage = RichTextPage.objects.create()
+        richtextpage.set_content_model()
+        page = Page.objects.get(pk=richtextpage.pk)
+        self.assertEqual(page.content_model, 'richtextpage')
+        self.assertEqual(page.get_content_model(), richtextpage)
+
+    def test_contenttyped_admin_redirects(self):
+        self.client.login(username=self._username, password=self._password)
+
+        # Unsubclassed objects should not redirect
+        page = Page.objects.create(title="Test page")
+        response = self.client.get(admin_url(Page, "change", page.pk))
+        self.assertEqual(response.status_code, 200)
+
+        # Subclassed objects should redirect to the admin for child class
+        richtext = RichTextPage.objects.create(title="Test rich text")
+        response = self.client.get(admin_url(Page, "change", richtext.pk))
+        richtext_change_url = admin_url(RichTextPage, "change", richtext.pk)
+        self.assertRedirects(response, richtext_change_url)

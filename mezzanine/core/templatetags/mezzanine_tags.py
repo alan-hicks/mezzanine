@@ -12,6 +12,7 @@ from django.apps import apps
 from django.contrib import admin
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.sites.models import Site
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.files import File
 from django.core.files.storage import default_storage
 from django.core.urlresolvers import reverse, resolve, NoReverseMatch
@@ -59,39 +60,44 @@ else:
         return parsed
 
 
-if cache_installed():
-    @register.tag
-    def nevercache(parser, token):
-        """
-        Tag for two phased rendering. Converts enclosed template
-        code and content into text, which gets rendered separately
-        in ``mezzanine.core.middleware.UpdateCacheMiddleware``.
-        This is to bypass caching for the enclosed code and content.
-        """
-        text = []
-        end_tag = "endnevercache"
-        tag_mapping = {
-            TOKEN_TEXT: ("", ""),
-            TOKEN_VAR: ("{{", "}}"),
-            TOKEN_BLOCK: ("{%", "%}"),
-            TOKEN_COMMENT: ("{#", "#}"),
-        }
-        delimiter = nevercache_token()
-        while parser.tokens:
-            token = parser.next_token()
-            if token.token_type == TOKEN_BLOCK and token.contents == end_tag:
-                return TextNode(delimiter + "".join(text) + delimiter)
-            start, end = tag_mapping[token.token_type]
-            text.append("%s%s%s" % (start, token.contents, end))
-        parser.unclosed_block_tag(end_tag)
-else:
-    @register.to_end_tag
-    def nevercache(parsed, context, token):
-        """
-        Dummy fallback ``nevercache`` for when caching is not
-        configured.
-        """
-        return parsed
+def initialize_nevercache():
+    if cache_installed():
+        @register.tag
+        def nevercache(parser, token):
+            """
+            Tag for two phased rendering. Converts enclosed template
+            code and content into text, which gets rendered separately
+            in ``mezzanine.core.middleware.UpdateCacheMiddleware``.
+            This is to bypass caching for the enclosed code and content.
+            """
+            text = []
+            end_tag = "endnevercache"
+            tag_mapping = {
+                TOKEN_TEXT: ("", ""),
+                TOKEN_VAR: ("{{", "}}"),
+                TOKEN_BLOCK: ("{%", "%}"),
+                TOKEN_COMMENT: ("{#", "#}"),
+            }
+            delimiter = nevercache_token()
+            while parser.tokens:
+                token = parser.next_token()
+                token_type = token.token_type
+                if token_type == TOKEN_BLOCK and token.contents == end_tag:
+                    return TextNode(delimiter + "".join(text) + delimiter)
+                start, end = tag_mapping[token_type]
+                text.append("%s%s%s" % (start, token.contents, end))
+            parser.unclosed_block_tag(end_tag)
+    else:
+        @register.to_end_tag
+        def nevercache(parsed, context, token):
+            """
+            Dummy fallback ``nevercache`` for when caching is not
+            configured.
+            """
+            return parsed
+
+
+initialize_nevercache()
 
 
 @register.simple_tag(takes_context=True)
@@ -100,7 +106,7 @@ def fields_for(context, form, template="includes/form_fields.html"):
     Renders fields for a form with an optional template choice.
     """
     context["form_for_fields"] = form
-    return get_template(template).render(Context(context))
+    return get_template(template).render(context)
 
 
 @register.inclusion_tag("includes/form_errors.html", takes_context=True)
@@ -108,8 +114,7 @@ def errors_for(context, form):
     """
     Renders an alert if the form has any errors.
     """
-    context["form"] = form
-    return context
+    return {"form": form}
 
 
 @register.filter
@@ -243,6 +248,9 @@ def search_form(context, search_model_names=None):
     string ``all`` can also be used, in which case the models defined
     by the ``SEARCH_MODEL_CHOICES`` setting will be used.
     """
+    template_vars = {
+        "request": context["request"],
+    }
     if not search_model_names or not settings.SEARCH_MODEL_CHOICES:
         search_model_names = []
     elif search_model_names == "all":
@@ -258,8 +266,8 @@ def search_form(context, search_model_names=None):
         else:
             verbose_name = model._meta.verbose_name_plural.capitalize()
             search_model_choices.append((verbose_name, model_name))
-    context["search_model_choices"] = sorted(search_model_choices)
-    return context
+    template_vars["search_model_choices"] = sorted(search_model_choices)
+    return template_vars
 
 
 @register.simple_tag
@@ -342,6 +350,29 @@ def thumbnail(image_url, width, height, upscale=True, quality=95, left=.5,
         return image_url
 
     image_info = image.info
+
+    # Transpose to align the image to its orientation if necessary.
+    # If the image is transposed, delete the exif information as
+    # not all browsers support the CSS image-orientation:
+    # - http://caniuse.com/#feat=css-image-orientation
+    try:
+        orientation = image._getexif().get(0x0112)
+    except:
+        orientation = None
+    if orientation:
+        methods = {
+           2: (Image.FLIP_LEFT_RIGHT,),
+           3: (Image.ROTATE_180,),
+           4: (Image.FLIP_TOP_BOTTOM,),
+           5: (Image.FLIP_LEFT_RIGHT, Image.ROTATE_90),
+           6: (Image.ROTATE_270,),
+           7: (Image.FLIP_LEFT_RIGHT, Image.ROTATE_270),
+           8: (Image.ROTATE_90,)}.get(orientation, ())
+        if methods:
+            image_info.pop('exif', None)
+            for method in methods:
+                image = image.transpose(method)
+
     to_width = int(width)
     to_height = int(height)
     from_width = image.size[0]
@@ -394,7 +425,7 @@ def thumbnail(image_url, width, height, upscale=True, quality=95, left=.5,
         # absolute.
         if "://" in settings.MEDIA_URL:
             with open(thumb_path, "rb") as f:
-                default_storage.save(thumb_url, File(f))
+                default_storage.save(unquote(thumb_url), File(f))
     except Exception:
         # If an error occurred, a corrupted image may have been saved,
         # so remove it, otherwise the check for it existing will just
@@ -413,17 +444,22 @@ def editable_loader(context):
     Set up the required JS/CSS for the in-line editing toolbar and controls.
     """
     user = context["request"].user
-    context["has_site_permission"] = has_site_permission(user)
-    if settings.INLINE_EDITING_ENABLED and context["has_site_permission"]:
+    template_vars = {
+        "has_site_permission": has_site_permission(user),
+        "request": context["request"],
+    }
+    if (settings.INLINE_EDITING_ENABLED and
+            template_vars["has_site_permission"]):
         t = get_template("includes/editable_toolbar.html")
-        context["REDIRECT_FIELD_NAME"] = REDIRECT_FIELD_NAME
-        try:
-            context["editable_obj"]
-        except KeyError:
-            context["editable_obj"] = context.get("page", None)
-        context["toolbar"] = t.render(Context(context))
-        context["richtext_media"] = RichTextField().formfield().widget.media
-    return context
+        template_vars["REDIRECT_FIELD_NAME"] = REDIRECT_FIELD_NAME
+        template_vars["editable_obj"] = context.get("editable_obj",
+                                        context.get("page", None))
+        template_vars["accounts_logout_url"] = context.get(
+            "accounts_logout_url", None)
+        template_vars["toolbar"] = t.render(Context(template_vars))
+        template_vars["richtext_media"] = RichTextField().formfield(
+            ).widget.media
+    return template_vars
 
 
 @register.filter
@@ -432,31 +468,10 @@ def richtext_filters(content):
     Takes a value edited via the WYSIWYG editor, and passes it through
     each of the functions specified by the RICHTEXT_FILTERS setting.
     """
-    filter_names = settings.RICHTEXT_FILTERS
-    if not filter_names:
-        try:
-            filter_names = [settings.RICHTEXT_FILTER]
-        except AttributeError:
-            pass
-        else:
-            from warnings import warn
-            warn("The `RICHTEXT_FILTER` setting is deprecated in favor of "
-                 "the new plural setting `RICHTEXT_FILTERS`.")
-    for filter_name in filter_names:
+    for filter_name in settings.RICHTEXT_FILTERS:
         filter_func = import_dotted_path(filter_name)
         content = filter_func(content)
     return content
-
-
-@register.filter
-def richtext_filter(content):
-    """
-    Deprecated version of richtext_filters above.
-    """
-    from warnings import warn
-    warn("The `richtext_filter` template tag is deprecated in favor of "
-         "the new plural tag `richtext_filters`.")
-    return richtext_filters(content)
 
 
 @register.to_end_tag
@@ -495,7 +510,7 @@ def editable(parsed, context, token):
             context["editable_form"] = get_edit_form(obj, field_names)
             context["original"] = parsed
             t = get_template("includes/editable_form.html")
-            return t.render(Context(context))
+            return t.render(context)
     return parsed
 
 
@@ -529,7 +544,6 @@ def admin_app_list(request):
     menu_order = {}
     for (group_index, group) in enumerate(settings.ADMIN_MENU_ORDER):
         group_title, items = group
-        group_title = group_title.title()
         for (item_index, item) in enumerate(items):
             if isinstance(item, (tuple, list)):
                 item_title, item = item
@@ -542,15 +556,23 @@ def admin_app_list(request):
     for (model, model_admin) in admin.site._registry.items():
         opts = model._meta
         in_menu = not hasattr(model_admin, "in_menu") or model_admin.in_menu()
+        if hasattr(model_admin, "in_menu"):
+            import warnings
+            warnings.warn(
+                'ModelAdmin.in_menu() has been replaced with '
+                'ModelAdmin.has_module_permission(request). See '
+                'https://docs.djangoproject.com/en/stable/ref/contrib/admin/'
+                '#django.contrib.admin.ModelAdmin.has_module_permission.',
+                DeprecationWarning)
+        in_menu = in_menu and model_admin.has_module_permission(request)
         if in_menu and request.user.has_module_perms(opts.app_label):
-            perms = model_admin.get_model_perms(request)
             admin_url_name = ""
-            if perms["change"]:
+            if model_admin.has_change_permission(request):
                 admin_url_name = "changelist"
                 change_url = admin_url(model, admin_url_name)
             else:
                 change_url = None
-            if perms["add"]:
+            if model_admin.has_add_permission(request):
                 admin_url_name = "add"
                 add_url = admin_url(model, admin_url_name)
             else:
@@ -562,7 +584,12 @@ def admin_app_list(request):
                         menu_order[model_label]
                 except KeyError:
                     app_index = None
-                    app_title = opts.app_label.title()
+                    try:
+                        app_title = opts.app_config.verbose_name.title()
+                    except AttributeError:
+                        # Third party admin classes doing weird things.
+                        # See GH #1628
+                        app_title = ""
                     model_index = None
                     model_title = None
                 else:
@@ -581,6 +608,7 @@ def admin_app_list(request):
                     "index": model_index,
                     "perms": model_admin.get_model_perms(request),
                     "name": model_title,
+                    "object_name": opts.object_name,
                     "admin_url": change_url,
                     "add_url": add_url
                 })
@@ -620,15 +648,22 @@ def admin_dropdown_menu(context):
     Renders the app list for the admin dropdown menu navigation.
     """
     user = context["request"].user
+    template_vars = {}
     if user.is_staff:
-        context["dropdown_menu_app_list"] = admin_app_list(context["request"])
+        template_vars["dropdown_menu_app_list"] = admin_app_list(
+            context["request"])
         if user.is_superuser:
             sites = Site.objects.all()
         else:
-            sites = user.sitepermissions.sites.all()
-        context["dropdown_menu_sites"] = list(sites)
-        context["dropdown_menu_selected_site_id"] = current_site_id()
-        return context
+            try:
+                sites = user.sitepermissions.sites.all()
+            except ObjectDoesNotExist:
+                sites = Site.objects.none()
+        template_vars["dropdown_menu_sites"] = list(sites)
+        template_vars["dropdown_menu_selected_site_id"] = current_site_id()
+        template_vars["settings"] = context["settings"]
+        template_vars["request"] = context["request"]
+        return template_vars
 
 
 @register.inclusion_tag("admin/includes/app_list.html", takes_context=True)
@@ -660,7 +695,7 @@ def dashboard_column(context, token):
     output = []
     for tag in settings.DASHBOARD_TAGS[column_index]:
         t = Template("{%% load %s %%}{%% %s %%}" % tuple(tag.split(".")))
-        output.append(t.render(Context(context)))
+        output.append(t.render(context))
     return "".join(output)
 
 

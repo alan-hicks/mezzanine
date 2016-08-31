@@ -62,18 +62,18 @@ Mezzanine makes exclusive use of `Django's staticfiles app
 <https://docs.djangoproject.com/en/dev/ref/contrib/staticfiles/>`_,
 for managing static files such as JavaScript, CSS, and images.
 
-When the ``DEBUG`` setting is set to ``True``, as it would be during
-development, the URL defined by the setting ``STATIC_URL`` (usually
+When the :django:setting:`DEBUG` setting is set to ``True``, as it would be during
+development, the URL defined by the setting :django:setting:`STATIC_URL` (usually
 ``/static/``), will host any files found in the ``static`` directory
-of any application listed in the ``INSTALLED_APPS`` setting.
+of any application listed in the :django:setting:`INSTALLED_APPS` setting.
 
-When ``DEBUG`` is set to ``False``, as it would be for your deployed
+When :django:setting:`DEBUG` is set to ``False``, as it would be for your deployed
 production site, you must run the ``collectstatic`` command on your
 live site, which will copy all of the files from the ``static``
 directory in each application, to the location defined by the
-``STATIC_ROOT`` setting. You then need to configure an alias in your
+:django:setting:`STATIC_ROOT` setting. You then need to configure an alias in your
 web server's config (Apache, NGINX, etc) that maps the URL defined by
-``STATIC_URL`` to serve files from this directory.
+:django:setting:`STATIC_URL` to serve files from this directory.
 
 Long story short, Django doesn't serve static content when deployed in
 production, leaving this up to the public facing web server, which is
@@ -103,13 +103,13 @@ filtering are implemented by default, that can be controlled in
 the settings section of the admin. These are High (the default), Low
 (which allows extra tags such as those required for embedding videos),
 and None (no filtering occurs). This is implemented via the
-``RICHTEXT_FILTER_LEVEL`` setting.
+:ref:`RICHTEXT_FILTER_LEVEL` setting.
 
 If your situation is one where your staff members are completely
 trusted, and custom HTML within WYSIWYG fields is required, then you
 can modify the filter level accordingly. Further customisation is
-possible via the ``RICHTEXT_ALLOWED_TAGS``,
-``RICHTEXT_ALLOWED_ATTRIBUTES`` and ``RICHTEXT_ALLOWED_STYLES``
+possible via the :ref:`RICHTEXT_ALLOWED_TAGS`,
+:ref:`RICHTEXT_ALLOWED_ATTRIBUTES` and :ref:`RICHTEXT_ALLOWED_STYLES`
 settings, which can have extra allowed values appended to using
 the ``append`` argument in Mezzanine's settings API. See the
 :ref:`registering-settings` section for more information.
@@ -133,10 +133,10 @@ namely ``mezzanine/core/templates/index.html`` (or
 ``templates/index.html`` if stored directly in your project). You can
 change the ``urlpattern`` for the homepage in your project's
 ``urls.py`` module. Be certain to take a look at the `urls.py module
-<https://github.com/stephenmcd/mezzanine/tree/master/mezzanine/project_template/urls.py>`_,
+<https://github.com/stephenmcd/mezzanine/tree/master/mezzanine/project_template/project_name/urls.py>`_,
 as it contains several examples of different types of homepages.
 In ``urls.py`` you'll find examples of pointing the homepage to a
-``Page`` object in the page tree, or pointing the homepage to the blog
+:class:`.Page` object in the page tree, or pointing the homepage to the blog
 post listing page, which is useful for sites that are primarily blogs.
 
 Of course with Django's models, admin classes, and template tags, the
@@ -205,8 +205,8 @@ as a standard Django app. Simply create a Django app with
 ``templates`` and ``static`` directories, copy the relevant HTML,
 CSS and JavaScript files into it from Mezzanine that you wish to
 modify, and then add the theme app's name to your project's
-``INSTALLED_APPS`` setting. Be sure to add the theme to the top of
-the ``INSTALLED_APPS`` list, so that its templates are found before
+:django:setting:`INSTALLED_APPS` setting. Be sure to add the theme to the top of
+the :django:setting:`INSTALLED_APPS` list, so that its templates are found before
 Mezzanine's versions of the templates.
 
 Have you created a cool theme that you'd like to share with the
@@ -258,9 +258,9 @@ necessary ``settings.py`` and ``urls.py`` modules, containing the
 project-level setup for Mezzanine. Of particular note are the following
 settings:
 
-  * ``INSTALLED_APPS``
-  * ``TEMPLATE_CONTEXT_PROCESSORS``
-  * ``MIDDLEWARE_CLASSES``
+  * :django:setting:`INSTALLED_APPS`
+  * :django:setting:`TEMPLATE_CONTEXT_PROCESSORS`
+  * :django:setting:`MIDDLEWARE_CLASSES`
   * ``PACKAGE_NAME_GRAPPELLI`` and ``PACKAGE_NAME_FILEBROWSER`` (for
     `django-grappelli <https://github.com/sehmaschine/django-grappelli>`_ and
     `django-filebrowser <https://github.com/sehmaschine/django-filebrowser>`_

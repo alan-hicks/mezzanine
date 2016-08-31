@@ -1,22 +1,27 @@
 from __future__ import unicode_literals
 
+from copy import deepcopy
+
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import User as AuthUser
+from django.core.urlresolvers import NoReverseMatch
 from django.forms import ValidationError, ModelForm
 from django.http import HttpResponseRedirect
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
-from django.contrib.auth.models import User as AuthUser
 
 from mezzanine.conf import settings
 from mezzanine.core.forms import DynamicInlineAdminForm
-from mezzanine.core.models import (Orderable, SitePermission,
-                                   CONTENT_STATUS_PUBLISHED)
+from mezzanine.core.models import (
+    Orderable, ContentTyped, SitePermission, CONTENT_STATUS_PUBLISHED)
+from mezzanine.utils.models import base_concrete_model
+from mezzanine.utils.static import static_lazy as static
 from mezzanine.utils.urls import admin_url
 
 if settings.USE_MODELTRANSLATION:
-    from django.utils.datastructures import SortedDict
+    from collections import OrderedDict
     from django.utils.translation import activate, get_language
     from modeltranslation.admin import (TranslationAdmin,
                                         TranslationInlineModelAdmin)
@@ -28,12 +33,13 @@ if settings.USE_MODELTRANSLATION:
         """
         class Media:
             js = (
-                "modeltranslation/js/force_jquery.js",
-                "mezzanine/js/%s" % settings.JQUERY_UI_FILENAME,
-                "mezzanine/js/admin/tabbed_translation_fields.js",
+                static("modeltranslation/js/force_jquery.js"),
+                static("mezzanine/js/%s" % settings.JQUERY_UI_FILENAME),
+                static("mezzanine/js/admin/tabbed_translation_fields.js"),
             )
             css = {
-                "all": ("mezzanine/css/admin/tabbed_translation_fields.css",),
+                "all": (static(
+                    "mezzanine/css/admin/tabbed_translation_fields.css"),),
             }
 
 else:
@@ -45,6 +51,7 @@ else:
         of whether or not modeltranslation is used.
         """
         class Media:
+            js = ()
             css = {"all": ()}
 
 
@@ -71,7 +78,10 @@ class DisplayableAdmin(BaseTranslationModelAdmin):
     list_display_links = ("title",)
     list_editable = ("status",)
     list_filter = ("status", "keywords__keyword")
-    date_hierarchy = "publish_date"
+    # modeltranslation breaks date hierarchy links, see:
+    # https://github.com/deschler/django-modeltranslation/issues/324
+    # Once that's resolved we can restore this.
+    date_hierarchy = None if settings.USE_MODELTRANSLATION else "publish_date"
     radio_fields = {"status": admin.HORIZONTAL}
     fieldsets = (
         (None, {
@@ -95,6 +105,13 @@ class DisplayableAdmin(BaseTranslationModelAdmin):
         except AttributeError:
             pass
 
+    def check_permission(self, request, page, permission):
+        """
+        Subclasses can define a custom permission check and raise an exception
+        if False.
+        """
+        pass
+
     def save_model(self, request, obj, form, change):
         """
         Save model for every language so that field auto-population
@@ -103,7 +120,7 @@ class DisplayableAdmin(BaseTranslationModelAdmin):
         super(DisplayableAdmin, self).save_model(request, obj, form, change)
         if settings.USE_MODELTRANSLATION:
             lang = get_language()
-            for code in SortedDict(settings.LANGUAGES):
+            for code in OrderedDict(settings.LANGUAGES):
                 if code != lang:  # Already done
                     try:
                         activate(code)
@@ -123,9 +140,13 @@ class BaseDynamicInlineAdmin(object):
     """
 
     form = DynamicInlineAdminForm
-    extra = 20
+    extra = 1
 
     def get_fields(self, request, obj=None):
+        """
+        For subclasses of ``Orderable``, the ``_order`` field must
+        always be present and be the last field.
+        """
         fields = super(BaseDynamicInlineAdmin, self).get_fields(request, obj)
         if issubclass(self.model, Orderable):
             fields = list(fields)
@@ -137,6 +158,9 @@ class BaseDynamicInlineAdmin(object):
         return fields
 
     def get_fieldsets(self, request, obj=None):
+        """
+        Same as above, but for fieldsets.
+        """
         fieldsets = super(BaseDynamicInlineAdmin, self).get_fieldsets(
                                                             request, obj)
         if issubclass(self.model, Orderable):
@@ -152,7 +176,7 @@ class BaseDynamicInlineAdmin(object):
         return fieldsets
 
 
-def getInlineBaseClass(cls):
+def get_inline_base_class(cls):
     if settings.USE_MODELTRANSLATION:
         class InlineBase(TranslationInlineModelAdmin, cls):
             """
@@ -166,13 +190,12 @@ def getInlineBaseClass(cls):
 
 
 class TabularDynamicInlineAdmin(BaseDynamicInlineAdmin,
-                                getInlineBaseClass(admin.TabularInline)):
-    template = "admin/includes/dynamic_inline_tabular.html"
+                                get_inline_base_class(admin.TabularInline)):
+    pass
 
 
 class StackedDynamicInlineAdmin(BaseDynamicInlineAdmin,
-                                getInlineBaseClass(admin.StackedInline)):
-    template = "admin/includes/dynamic_inline_stacked.html"
+                                get_inline_base_class(admin.StackedInline)):
 
     def __init__(self, *args, **kwargs):
         """
@@ -231,60 +254,115 @@ class OwnableAdmin(admin.ModelAdmin):
         return qs.filter(user__id=request.user.id)
 
 
-class SingletonAdmin(admin.ModelAdmin):
-    """
-    Admin class for models that should only contain a single instance
-    in the database. Redirect all views to the change view when the
-    instance exists, and to the add view when it doesn't.
-    """
+class ContentTypedAdmin(object):
 
-    def handle_save(self, request, response):
+    def __init__(self, *args, **kwargs):
         """
-        Handles redirect back to the dashboard when save is clicked
-        (eg not save and continue editing), by checking for a redirect
-        response, which only occurs if the form is valid.
+        For subclasses that are registered with an Admin class
+        that doesn't implement fieldsets, add any extra model fields
+        to this instance's fieldsets. This mimics Django's behaviour of
+        adding all model fields when no fieldsets are defined on the
+        Admin class.
         """
-        form_valid = isinstance(response, HttpResponseRedirect)
-        if request.POST.get("_save") and form_valid:
-            return redirect("admin:index")
-        return response
+        super(ContentTypedAdmin, self).__init__(*args, **kwargs)
 
-    def add_view(self, *args, **kwargs):
-        """
-        Redirect to the change view if the singleton instance exists.
-        """
-        try:
-            singleton = self.model.objects.get()
-        except (self.model.DoesNotExist, self.model.MultipleObjectsReturned):
-            kwargs.setdefault("extra_context", {})
-            kwargs["extra_context"]["singleton"] = True
-            response = super(SingletonAdmin, self).add_view(*args, **kwargs)
-            return self.handle_save(args[0], response)
-        return redirect(admin_url(self.model, "change", singleton.id))
+        self.concrete_model = base_concrete_model(ContentTyped, self.model)
 
-    def changelist_view(self, *args, **kwargs):
-        """
-        Redirect to the add view if no records exist or the change
-        view if the singleton instance exists.
-        """
-        try:
-            singleton = self.model.objects.get()
-        except self.model.MultipleObjectsReturned:
-            return super(SingletonAdmin, self).changelist_view(*args, **kwargs)
-        except self.model.DoesNotExist:
-            return redirect(admin_url(self.model, "add"))
-        return redirect(admin_url(self.model, "change", singleton.id))
+        # Test that the fieldsets don't differ from the concrete admin's.
+        if (self.model is not self.concrete_model and
+                self.fieldsets == self.base_concrete_modeladmin.fieldsets):
 
-    def change_view(self, *args, **kwargs):
+            # Make a copy so that we aren't modifying other Admin
+            # classes' fieldsets.
+            self.fieldsets = deepcopy(self.fieldsets)
+
+            # Insert each field between the publishing fields and nav
+            # fields. Do so in reverse order to retain the order of
+            # the model's fields.
+            model_fields = self.concrete_model._meta.get_fields()
+            concrete_field = '{concrete_model}_ptr'.format(
+                concrete_model=self.concrete_model.get_content_model_name())
+            exclude_fields = [f.name for f in model_fields] + [concrete_field]
+
+            try:
+                exclude_fields.extend(self.exclude)
+            except (AttributeError, TypeError):
+                pass
+
+            try:
+                exclude_fields.extend(self.form.Meta.exclude)
+            except (AttributeError, TypeError):
+                pass
+
+            fields = self.model._meta.fields + self.model._meta.many_to_many
+            for field in reversed(fields):
+                if field.name not in exclude_fields and field.editable:
+                    if not hasattr(field, "translated_field"):
+                        self.fieldsets[0][1]["fields"].insert(3, field.name)
+
+    @property
+    def base_concrete_modeladmin(self):
+        """ The class inheriting directly from ContentModelAdmin. """
+        candidates = [self.__class__]
+        while candidates:
+            candidate = candidates.pop()
+            if ContentTypedAdmin in candidate.__bases__:
+                return candidate
+            candidates.extend(candidate.__bases__)
+
+        raise Exception("Can't find base concrete ModelAdmin class.")
+
+    def has_module_permission(self, request):
         """
-        If only the singleton instance exists, pass ``True`` for
-        ``singleton`` into the template which will use CSS to hide
-        the "save and add another" button.
+        Hide subclasses from the admin menu.
         """
-        kwargs.setdefault("extra_context", {})
-        kwargs["extra_context"]["singleton"] = self.model.objects.count() == 1
-        response = super(SingletonAdmin, self).change_view(*args, **kwargs)
-        return self.handle_save(args[0], response)
+        return self.model is self.concrete_model
+
+    def change_view(self, request, object_id, **kwargs):
+        """
+        For the concrete model, check ``get_content_model()``
+        for a subclass and redirect to its admin change view.
+        """
+        instance = get_object_or_404(self.concrete_model, pk=object_id)
+        content_model = instance.get_content_model()
+
+        self.check_permission(request, content_model, "change")
+
+        if content_model.__class__ != self.model:
+            change_url = admin_url(content_model.__class__, "change",
+                                   content_model.id)
+            return HttpResponseRedirect(change_url)
+
+        return super(ContentTypedAdmin, self).change_view(
+            request, object_id, **kwargs)
+
+    def changelist_view(self, request, extra_context=None):
+        """ Redirect to the changelist view for subclasses. """
+        if self.model is not self.concrete_model:
+            return HttpResponseRedirect(
+                admin_url(self.concrete_model, "changelist"))
+
+        extra_context = extra_context or {}
+        extra_context["content_models"] = self.get_content_models()
+
+        return super(ContentTypedAdmin, self).changelist_view(
+            request, extra_context)
+
+    def get_content_models(self):
+        """ Return all subclasses that are admin registered. """
+        models = []
+
+        for model in self.concrete_model.get_content_models():
+            try:
+                admin_url(model, "add")
+            except NoReverseMatch:
+                continue
+            else:
+                setattr(model, "meta_verbose_name", model._meta.verbose_name)
+                setattr(model, "add_url", admin_url(model, "add"))
+                models.append(model)
+
+        return models
 
 
 ###########################################
@@ -302,5 +380,6 @@ class SitePermissionUserAdmin(UserAdmin):
 
 # only register if User hasn't been overridden
 if User == AuthUser:
-    admin.site.unregister(User)
+    if User in admin.site._registry:
+        admin.site.unregister(User)
     admin.site.register(User, SitePermissionUserAdmin)
