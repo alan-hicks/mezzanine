@@ -61,13 +61,7 @@ def current_site_id():
                     if cache_installed():
                         cache_set(cache_key, site_id)
     if not site_id:
-        try:
-            cur_language = translation.get_language()
-            site_id = settings.LANGUAGE_SITE_MAP[cur_language]
-        except KeyError:
-            site_id = os.environ.get("MEZZANINE_SITE_ID", settings.SITE_ID)
-            msg = 'Please add language %s to settings.LANGUAGE_SITE_MAP'
-            sys.stdout.write(msg % cur_language)
+        site_id = settings.SITE_ID
     if request and site_id and not getattr(settings, "TESTING", False):
         request.site_id = site_id
     return site_id
