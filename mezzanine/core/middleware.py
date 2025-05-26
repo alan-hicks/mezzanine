@@ -1,28 +1,41 @@
-from __future__ import unicode_literals
+import warnings
+from functools import lru_cache
 
 from django.contrib import admin
 from django.contrib.auth import logout
 from django.contrib.messages import error
 from django.contrib.redirects.models import Redirect
 from django.core.exceptions import MiddlewareNotUsed
-from django.core.urlresolvers import reverse, resolve
-from django.http import (HttpResponse, HttpResponseRedirect,
-                         HttpResponsePermanentRedirect, HttpResponseGone)
+from django.http import (
+    HttpResponse,
+    HttpResponseGone,
+    HttpResponsePermanentRedirect,
+    HttpResponseRedirect,
+)
 from django.middleware.csrf import CsrfViewMiddleware, get_token
-from django.template import Template, RequestContext
+from django.template import RequestContext, Template
+from django.urls import resolve, reverse
 from django.utils.cache import get_max_age
+from django.utils.deprecation import MiddlewareMixin
 from django.utils.safestring import mark_safe
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 
 from mezzanine.conf import settings
+from mezzanine.core.management.commands.createdb import (
+    DEFAULT_PASSWORD,
+    DEFAULT_USERNAME,
+)
 from mezzanine.core.models import SitePermission
-from mezzanine.core.management.commands.createdb import (DEFAULT_USERNAME,
-                                                         DEFAULT_PASSWORD)
-from mezzanine.utils.cache import (cache_key_prefix, nevercache_token,
-                                   cache_get, cache_set, cache_installed)
-from mezzanine.utils.device import templates_for_device
-from mezzanine.utils.deprecation import MiddlewareMixin, get_middleware_setting
-from mezzanine.utils.sites import current_site_id, templates_for_host
+from mezzanine.utils.cache import (
+    cache_get,
+    cache_installed,
+    cache_key_prefix,
+    cache_set,
+    nevercache_token,
+)
+from mezzanine.utils.conf import middlewares_or_subclasses_installed
+from mezzanine.utils.deprecation import is_authenticated
+from mezzanine.utils.sites import current_site_id
 from mezzanine.utils.urls import next_url
 
 
@@ -31,21 +44,30 @@ class AdminLoginInterfaceSelectorMiddleware(MiddlewareMixin):
     Checks for a POST from the admin login view and if authentication is
     successful and the "site" interface is selected, redirect to the site.
     """
+
     def process_view(self, request, view_func, view_args, view_kwargs):
         login_type = request.POST.get("mezzanine_login_interface")
-        if login_type and not request.user.is_authenticated():
+        if login_type and not is_authenticated(request.user):
             response = view_func(request, *view_args, **view_kwargs)
-            if request.user.is_authenticated():
+            if is_authenticated(request.user):
                 if login_type == "admin":
                     next = next_url(request) or request.get_full_path()
                     username = request.user.get_username()
-                    if (username == DEFAULT_USERNAME and
-                            request.user.check_password(DEFAULT_PASSWORD)):
-                        error(request, mark_safe(_(
-                              "Your account is using the default password, "
-                              "please <a href='%s'>change it</a> immediately.")
-                              % reverse("user_change_password",
-                                        args=(request.user.id,))))
+                    if username == DEFAULT_USERNAME and request.user.check_password(
+                        DEFAULT_PASSWORD
+                    ):
+                        error(
+                            request,
+                            mark_safe(
+                                _(
+                                    "Your account is using the default password, "
+                                    "please <a href='%s'>change it</a> immediately."
+                                )
+                                % reverse(
+                                    "user_change_password", args=(request.user.id,)
+                                )
+                            ),
+                        )
                 else:
                     next = "/"
                 return HttpResponseRedirect(next)
@@ -60,6 +82,7 @@ class SitePermissionMiddleware(MiddlewareMixin):
     used in place of ``user.is_staff`` to achieve per-site staff
     access.
     """
+
     def process_view(self, request, view_func, view_args, view_kwargs):
         has_site_permission = False
         if request.user.is_superuser:
@@ -82,27 +105,33 @@ class SitePermissionMiddleware(MiddlewareMixin):
 
 class TemplateForDeviceMiddleware(MiddlewareMixin):
     """
+    DEPRECATED: Device detection has been removed from Mezzanine.
     Inserts device-specific templates to the template list.
     """
-    def process_template_response(self, request, response):
-        if hasattr(response, "template_name"):
-            if not isinstance(response.template_name, Template):
-                templates = templates_for_device(request,
-                    response.template_name)
-                response.template_name = templates
-        return response
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        warnings.warn(
+            "`TemplateForDeviceMiddleware` is deprecated. "
+            "Please remove it from your middleware settings.",
+            FutureWarning,
+            stacklevel=2,
+        )
 
 
 class TemplateForHostMiddleware(MiddlewareMixin):
     """
     Inserts host-specific templates to the template list.
     """
-    def process_template_response(self, request, response):
-        if hasattr(response, "template_name"):
-            if not isinstance(response.template_name, Template):
-                response.template_name = templates_for_host(
-                    response.template_name)
-        return response
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        warnings.warn(
+            "`TemplateForHostMiddleware` is deprecated. Please upgrade "
+            "to the template loader. See: https://goo.gl/SzHPR4",
+            FutureWarning,
+            stacklevel=2,
+        )
 
 
 class UpdateCacheMiddleware(MiddlewareMixin):
@@ -130,7 +159,7 @@ class UpdateCacheMiddleware(MiddlewareMixin):
         # and the response mustn't include an expiry age, indicating it
         # shouldn't be cached.
         marked_for_update = getattr(request, "_update_cache", False)
-        anon = hasattr(request, "user") and not request.user.is_authenticated()
+        anon = hasattr(request, "user") and not is_authenticated(request.user)
         timeout = get_max_age(response)
         if timeout is None:
             timeout = settings.CACHE_MIDDLEWARE_SECONDS
@@ -148,7 +177,7 @@ class UpdateCacheMiddleware(MiddlewareMixin):
         # enclosed by it, to avoid possible template code injection.
         token = nevercache_token()
         try:
-            token = token.encode('utf-8')
+            token = token.encode("utf-8")
         except AttributeError:
             pass
         parts = response.content.split(token)
@@ -167,22 +196,27 @@ class UpdateCacheMiddleware(MiddlewareMixin):
         context = RequestContext(request)
         for i, part in enumerate(parts):
             if i % 2:
-                part = Template(part).render(context).encode("utf-8")
+                part = Template(part.decode("utf-8")).render(context).encode("utf-8")
             parts[i] = part
         response.content = b"".join(parts)
         response["Content-Length"] = len(response.content)
-        if hasattr(request, '_messages'):
+        if hasattr(request, "_messages"):
             # Required to clear out user messages.
             request._messages.update(response)
         # Response needs to be run-through the CSRF middleware again so
         # that if there was a {% csrf_token %} inside of the nevercache
         # the cookie will be correctly set for the the response
-        csrf_mw_name = "django.middleware.csrf.CsrfViewMiddleware"
-        if csrf_mw_name in get_middleware_setting():
+        if csrf_middleware_installed():
             response.csrf_processing_done = False
-            csrf_mw = CsrfViewMiddleware()
+            csrf_mw = CsrfViewMiddleware(self.get_response)
             csrf_mw.process_response(request, response)
         return response
+
+
+@lru_cache(maxsize=None)
+def csrf_middleware_installed():
+    csrf_mw_name = "django.middleware.csrf.CsrfViewMiddleware"
+    return middlewares_or_subclasses_installed([csrf_mw_name])
 
 
 class FetchFromCacheMiddleware(MiddlewareMixin):
@@ -193,16 +227,18 @@ class FetchFromCacheMiddleware(MiddlewareMixin):
     """
 
     def process_request(self, request):
-        if (cache_installed() and request.method == "GET" and
-                not request.user.is_authenticated()):
+        if (
+            cache_installed()
+            and request.method == "GET"
+            and not is_authenticated(request.user)
+        ):
             cache_key = cache_key_prefix(request) + request.get_full_path()
             response = cache_get(cache_key)
             # We need to force a csrf token here, as new sessions
-            # won't receieve one on their first request, with cache
+            # won't receive one on their first request, with cache
             # middleware running.
-            csrf_mw_name = "django.middleware.csrf.CsrfViewMiddleware"
-            if csrf_mw_name in get_middleware_setting():
-                csrf_mw = CsrfViewMiddleware()
+            if csrf_middleware_installed():
+                csrf_mw = CsrfViewMiddleware(self.get_response)
                 csrf_mw.process_view(request, lambda x: None, None, None)
                 get_token(request)
             if response is None:
@@ -222,6 +258,15 @@ class SSLRedirectMiddleware(MiddlewareMixin):
     to HTTPS, and redirect all other URLs to HTTP if on HTTPS.
     """
 
+    def __init__(self, *args):
+        warnings.warn(
+            "SSLRedirectMiddleware is deprecated. See "
+            "https://docs.djangoproject.com/en/stable/ref/middleware/"
+            "#module-django.middleware.security for alternative solutions.",
+            DeprecationWarning,
+        )
+        super().__init__(*args)
+
     def languages(self):
         if not hasattr(self, "_languages"):
             self._languages = dict(settings.LANGUAGES).keys()
@@ -231,10 +276,10 @@ class SSLRedirectMiddleware(MiddlewareMixin):
         force_host = settings.SSL_FORCE_HOST
         response = None
         if force_host and request.get_host().split(":")[0] != force_host:
-            url = "http://%s%s" % (force_host, request.get_full_path())
+            url = f"http://{force_host}{request.get_full_path()}"
             response = HttpResponsePermanentRedirect(url)
         elif settings.SSL_ENABLED and not settings.DEV_SERVER:
-            url = "%s%s" % (request.get_host(), request.get_full_path())
+            url = f"{request.get_host()}{request.get_full_path()}"
             path = request.path
             if settings.USE_I18N and path[1:3] in self.languages():
                 path = path[3:]
@@ -251,7 +296,7 @@ class SSLRedirectMiddleware(MiddlewareMixin):
                 # in this case we don't attempt a redirect - note that
                 # when /admin is restricted to SSL using Mezzanine's SSL
                 # setup, the flash uploader will post over SSL, so
-                # someone would need to explictly go out of their way to
+                # someone would need to explicitly go out of their way to
                 # trigger this.
                 return
             # Tell the client they need to re-POST.
@@ -266,7 +311,7 @@ class RedirectFallbackMiddleware(MiddlewareMixin):
     """
 
     def __init__(self, *args, **kwargs):
-        super(RedirectFallbackMiddleware, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         if "django.contrib.redirects" not in settings.INSTALLED_APPS:
             raise MiddlewareNotUsed
 

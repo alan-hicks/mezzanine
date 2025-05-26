@@ -12,19 +12,16 @@ powered by Mezzanine <http://mezzanine.jupo.org/sites/>`_.
     A working knowledge of `Django <https://www.djangoproject.com/>`_
     is required to work with Mezzanine and the documentation assumes as
     much. If you're new to Django, you'll need to work through the
-    `Django tutorial
-    <https://docs.djangoproject.com/en/dev/intro/tutorial01/>`_
+    :doc:`Django tutorial <django:intro/tutorial01>`
     before being able to understand the concepts used throughout the
     Mezzanine documentation. *A mantra for working with Mezzanine:
     Mezzanine Is Just Django* - `Ken Bolton <http://bscientific.org/>`_,
     Mezzanine core team member.
 
-**Front-end developers** can read about how to set up templates for
-specific :doc:`device-handling` such as phones and tablets. Mezzanine
-also comes with the ability for content authors to edit content directly
-within a page while viewing it on the website. You can read about this
-and how to implement this feature within templates under
-:doc:`inline-editing`.
+**Front-end developers** might be interested in Mezzanine's ability for
+content authors to edit content directly within a page while viewing it
+on the website. You can read about this and how to implement this feature
+within templates under :doc:`inline-editing`.
 
 **Back-end developers** can get a better technical overview of how
 content is managed and how to customize Mezzanine in general by
@@ -63,7 +60,6 @@ Table Of Contents
     multi-lingual-sites
     utilities
     model-graph
-    device-handling
     inline-editing
     caching-strategy
     multi-tenancy

@@ -2,10 +2,11 @@
 Multi-Tenancy
 =============
 
-Mezzanine makes use of Django's ``sites`` app to support multiple sites in a
-single project. This functionality is always "turned on" in Mezzanine: a
-single ``Site`` record always exists, and is referenced when retrieving site
-related data, which most content in Mezzanine falls under.
+Mezzanine makes use of :doc:`Django's sites app <django:ref/contrib/admin/index>` to
+support multiple sites in a single project. This functionality is always
+"turned on" in Mezzanine: a single :class:`Site
+<django.contrib.sites.models.Site>` record always exists, and is referenced
+when retrieving site related data, which most content in Mezzanine falls under.
 
 Where Mezzanine diverges from Django is how the ``Site`` record is retrieved.
 Typically a running instance of a Django project is bound to a single site
@@ -108,7 +109,7 @@ The project's main ``urls.py`` would need the following line active,
 so that "/" is the target URL Mezzanine finds for home page rendering
 (via the ``HomePage`` content type)::
 
-    url("^$", "mezzanine.pages.views.page", {"slug": "/"}, name="home"),
+    path("", "mezzanine.pages.views.page", {"slug": "/"}, name="home"),
 
 Mezzanine will look for a page instance at '/' for each theme.
 ``HomePage`` instances would be created via the admin system for each
@@ -128,8 +129,42 @@ during the development process::
 
 Finally, under /admin, these sites will share some resources, such as
 the media library, while there is separation of content stored in the
-database (independent ``HomePage`` instances, independant blog posts,
+database (independent ``HomePage`` instances, independent blog posts,
 an independent page hierarchy, etc.). Furthermore, the content types
 added to, say ``example_theme``, e.g. ``HomePage``, are shared and
 available in the different sites. Such nuances of sharing must be
 considered when employing this approach.
+
+Upgrading from ``TemplateForHostMiddleware``
+--------------------------------------------
+
+Mezzanine implements host-specific templates using a template loader since
+version 4.3. Prior to that, the ``TemplateForHostMiddleware`` was used. If you
+are upgrading from a version lower than 4.3 and getting warnings in the
+terminal about ``TemplateForHostMiddleware``, edit your ``settings.py`` to
+switch to the new loader-based approach:
+
+ * Remove ``TemplateForHostMiddleware`` from your :django:setting:`MIDDLEWARE` setting.
+ * Remove ``"APP_DIRS": True`` from your :django:setting:`TEMPLATES` setting.
+ * Add ``mezzanine.template.loaders.host_themes.Loader`` to the list of
+   template loaders.
+
+Your :django:setting:`TEMPLATES`` setting should look like this (notice the ``"loaders"`` key):
+
+.. code:: python
+
+    TEMPLATES = [
+        {
+            "BACKEND": "django.template.backends.django.DjangoTemplates",
+            "DIRS": [...],
+            "OPTIONS": {
+                "context_processors": [...],
+                "builtins": [...],
+                "loaders": [
+                    "mezzanine.template.loaders.host_themes.Loader",
+                    "django.template.loaders.filesystem.Loader",
+                    "django.template.loaders.app_directories.Loader",
+                ]
+            },
+        },
+    ]

@@ -18,7 +18,7 @@
 
 {% block breadcrumb_menu %}
 {{ block.super }}
-<li class="active">{{ blog_post.title }}</li>
+<li class="breadcrumb-item active">{{ blog_post.title }}</li>
 {% endblock %}
 
 {% block main %}
@@ -62,7 +62,7 @@
 
 {% block blog_post_detail_content %}
 {% editable blog_post.content %}
-{{ blog_post.content|richtext_filters|safe }}
+{{ blog_post.content|richtext_filters }}
 {% endeditable %}
 {% endblock %}
 

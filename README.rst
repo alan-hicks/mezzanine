@@ -1,5 +1,13 @@
-.. image:: https://secure.travis-ci.org/stephenmcd/mezzanine.png?branch=master
-   :target: http://travis-ci.org/stephenmcd/mezzanine
+.. image:: https://img.shields.io/pypi/v/mezzanine.svg
+   :target: https://pypi.org/project/mezzanine/
+.. image:: https://img.shields.io/pypi/pyversions/mezzanine.svg
+   :target: https://pypi.org/project/mezzanine/
+.. image:: https://img.shields.io/pypi/djversions/mezzanine.svg
+   :target: https://pypi.org/project/mezzanine/
+.. image:: https://github.com/stephenmcd/mezzanine/workflows/Test%20and%20release/badge.svg
+   :target: https://github.com/stephenmcd/mezzanine/actions?query=workflow%3A%22Test+and+release%22
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+   :target: https://github.com/psf/black
 
 Created by `Stephen McDonald <http://twitter.com/stephen_mcd>`_
 
@@ -43,7 +51,7 @@ interface, Mezzanine provides the following:
 * Configurable `dashboard`_ widgets
 * Blog engine
 * Tagging
-* `Free Themes`_, and a `Premium Themes`_ Marketplace
+* `Free Themes`_ Marketplace
 * User accounts and profiles with email verification
 * Translated to over 35 languages
 * Sharing via Facebook or Twitter
@@ -53,16 +61,12 @@ interface, Mezzanine provides the following:
 * API for `custom content types`_
 * `Search engine and API`_
 * Seamless integration with third-party Django apps
-* Multi-device detection and template handling
 * One step migration from other blogging engines
-* Automated production provisioning and deployments
 * `Disqus`_ integration, or built-in threaded comments
 * `Gravatar`_ integration
 * `Google Analytics`_ integration
-* `Twitter`_ feed integration
 * `bit.ly`_ integration
 * `Akismet`_ spam filtering
-* Built-in `test suite`_
 * `JVM`_ compatible (via `Jython`_)
 
 The Mezzanine admin dashboard:
@@ -104,22 +108,6 @@ Mercurial version control systems. These repositories are hosted on
 both `GitHub`_ and `Bitbucket`_ respectively, so contributing is as
 easy as forking the project on either of these sites and committing
 back your enhancements.
-
-Please note the following guidelines for contributing:
-
-* Before doing anything, discuss it on the `mezzanine-users`_ mailing
-  list first.
-* Contributed code must be written in the existing style. For Python
-  (and to a decent extent, JavaScript as well), this is as simple as
-  following the `Django coding style`_ and (most importantly)
-  `PEP 8`_. Front-end CSS should adhere to the
-  `Bootstrap CSS guidelines`_.
-* Contributions must be available on a separately named branch
-  based on the latest version of the main branch.
-* Run the tests before committing your changes. If your changes
-  cause the tests to break, they won't be accepted.
-* If you are adding new functionality, you must include basic tests
-  and documentation.
 
 
 Donating
@@ -169,11 +157,7 @@ Quotes
 .. _`Search engine and API`: http://mezzanine.jupo.org/docs/search-engine.html
 .. _`dashboard`: http://mezzanine.jupo.org/docs/admin-customization.html#dashboard
 .. _`Free Themes`: https://github.com/thecodinghouse/mezzanine-themes
-.. _`Premium Themes`: http://mezzathe.me/
-.. _`@abhinavsohani`: https://twitter.com/abhinavsohani
-.. _`@joshcartme`: https://twitter.com/joshcartme
 .. _`Custom templates`: http://mezzanine.jupo.org/docs/content-architecture.html#page-templates
-.. _`test suite`: http://mezzanine.jupo.org/docs/packages.html#module-mezzanine.core.tests
 .. _`Multi-lingual sites`: http://mezzanine.jupo.org/docs/multi-lingual-sites.html
 .. _`JVM`: http://en.wikipedia.org/wiki/Java_virtual_machine
 .. _`Jython`: http://www.jython.org/
@@ -181,7 +165,6 @@ Quotes
 .. _`Disqus`: http://disqus.com/
 .. _`Gravatar`: http://gravatar.com/
 .. _`Google Analytics`: http://www.google.com/analytics/
-.. _`Twitter`: http://twitter.com/
 .. _`bit.ly`: http://bit.ly/
 .. _`Akismet`: http://akismet.com/
 .. _`GitHub`: http://github.com/stephenmcd/mezzanine/
@@ -191,9 +174,6 @@ Quotes
 .. _`GitHub issue tracker`: http://github.com/stephenmcd/mezzanine/issues
 .. _`#mezzanine IRC channel`: irc://irc.freenode.net/mezzanine
 .. _`Freenode`: http://freenode.net
-.. _`Django coding style`: https://docs.djangoproject.com/en/dev/internals/contributing/writing-code/coding-style/
-.. _`PEP 8`: http://www.python.org/dev/peps/pep-0008/
-.. _`Bootstrap CSS guidelines`: https://github.com/twbs/bootstrap/blob/master/CONTRIBUTING.md#css
 .. _`Mezzanine Project`: http://mezzanine.jupo.org
 
 .. _`Python Software Foundation`: http://www.python.org/psf/
